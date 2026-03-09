@@ -1,8 +1,16 @@
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'components/more_option_btn.dart';
+import 'models/music_items.dart';
+import 'package:provider/provider.dart';
+import 'providers/audio_provider.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => AudioProvider(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -45,15 +53,89 @@ class MainLayout extends StatelessWidget {
           child: Row(
             children: [
               PrimaryButton(
-                child: const Icon(Icons.play_arrow),
                 onPressed: () {},
                 shape: ButtonShape.circle,
+                child: const Icon(Icons.play_arrow),
               ),
-              MoreOptionsBtn(),
+              MoreOptionsBtn(
+                openMusicList: () {
+                  openMusicList(context);
+                },
+              ),
             ],
           ),
         ),
       ],
     );
   }
+}
+
+void openMusicList(BuildContext context) {
+  final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+
+  final List<MusicItem> musicList = [
+    MusicItem(
+      title: 'Sample Song 1',
+      id: '/path/to/song1.mp3',
+      size: 5 * 1024 * 1024,
+      duration: '2:45',
+    ),
+    MusicItem(
+      title: 'Sample Song 2',
+      id: '/path/to/song2.mp3',
+      size: 8 * 1024 * 1024,
+      duration: '2:45',
+    ),
+  ];
+
+  openDrawer(
+    context: context,
+    position: OverlayPosition.bottom,
+    builder: (context) {
+      return SizedBox(
+        height: 400,
+        child: Column(
+          children: [
+            const Text('Music List'),
+            const Divider(),
+            ...musicList.map((item) {
+              final isSelected = audioProvider.currentItem?.id == item.id;
+              return GestureDetector(
+                onTap: () async {
+                  await audioProvider.selectMusic(item);
+                  Navigator.pop(context);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.music_note),
+                      const Gap(12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(item.title),
+                            Text(
+                              '${(item.size / 1024 / 1024).toStringAsFixed(1)} MB',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (isSelected)
+                        const Icon(Icons.check, color: Colors.green),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      );
+    },
+  );
 }
