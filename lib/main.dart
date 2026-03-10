@@ -76,13 +76,13 @@ void openMusicList(BuildContext context) {
   final List<MusicItem> musicList = [
     MusicItem(
       title: 'Sample Song 1',
-      id: '/path/to/song1.mp3',
+      id: 'assets/file_example_MP3_700KB.mp3',
       size: 5 * 1024 * 1024,
       duration: '2:45',
     ),
     MusicItem(
       title: 'Sample Song 2',
-      id: '/path/to/song2.mp3',
+      id: 'assets/file_example_WAV_1MG.wav',
       size: 8 * 1024 * 1024,
       duration: '2:45',
     ),

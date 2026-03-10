@@ -7,11 +7,13 @@ class AudioProvider extends ChangeNotifier {
   MusicItem? _currentItem;
   Duration? _duration;
   Duration? _currentTime;
+  bool _isLoading = false;
 
   MusicItem? get currentItem => _currentItem;
   Duration? get duration => _duration;
   Duration? get currentTime => _currentTime;
   bool get isPlaying => _player.playing;
+  bool get isLoading => _isLoading;
   Stream<Duration?> get positionStream => _player.positionStream;
   Stream<Duration?> get durationStream => _player.durationStream;
 
@@ -30,13 +32,29 @@ class AudioProvider extends ChangeNotifier {
   }
 
   Future<void> selectMusic(MusicItem item) async {
-    _currentItem = item;
-    await _player.setFilePath(item.id); // assume id is file URL
-    _duration = _player.duration; // await
+    print(item.id);
+    _isLoading = true;
     notifyListeners();
+
+    try {
+      _currentItem = item;
+      await _player.stop();
+
+      if (item.id.startsWith('assets/')) {
+        await _player.setAsset(item.id);
+      } else {
+        await _player.setFilePath(item.id);
+      }
+
+      await _player.play();
+    } catch (e) {
+      debugPrint('Error: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
-  // play/pause
   Future<void> playPause() async {
     if (_player.playing) {
       await _player.pause();
@@ -46,12 +64,10 @@ class AudioProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // seek current position (for progress bar)
   Future<void> seek(Duration position) async {
     await _player.seek(position);
   }
 
-  // release resource
   @override
   void dispose() {
     _player.dispose();
