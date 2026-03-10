@@ -44,6 +44,7 @@ class MainLayout extends StatelessWidget {
   const MainLayout({super.key});
   @override
   Widget build(BuildContext context) {
+    print("Main layout build");
     return Stack(
       children: [
         const Center(child: Text('Waveform Area')),
@@ -75,13 +76,13 @@ void openMusicList(BuildContext context) {
 
   final List<MusicItem> musicList = [
     MusicItem(
-      title: 'Sample Song 1',
+      title: 'test mp3',
       id: 'assets/file_example_MP3_700KB.mp3',
       size: 5 * 1024 * 1024,
       duration: '2:45',
     ),
     MusicItem(
-      title: 'Sample Song 2',
+      title: 'test wav',
       id: 'assets/file_example_WAV_1MG.wav',
       size: 8 * 1024 * 1024,
       duration: '2:45',
@@ -102,8 +103,20 @@ void openMusicList(BuildContext context) {
               final isSelected = audioProvider.currentItem?.id == item.id;
               return GestureDetector(
                 onTap: () async {
+                  final audioProvider = Provider.of<AudioProvider>(
+                    context,
+                    listen: false,
+                  );
+
+                  if (audioProvider.isLoading) return;
+
+                  // 執行異步音樂載入
                   await audioProvider.selectMusic(item);
-                  Navigator.pop(context);
+
+                  // 在執行任何影響介面的操作前，檢查元件是否仍然掛載
+                  if (context.mounted) {
+                    closeOverlay(context);
+                  }
                 },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
