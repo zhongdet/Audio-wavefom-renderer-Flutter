@@ -1,57 +1,96 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import '../models/music_items.dart';
 
-class AudioProvider extends ChangeNotifier {
-  final AudioPlayer _player = AudioPlayer();
-  MusicItem? _currentItem;
-  Duration? _duration;
-  Duration? _currentTime;
-  bool _isLoading = false;
+final audioNotifierProvider = AsyncNotifierProvider<AudioNotifier, AudioState>(
+  () {
+    return AudioNotifier();
+  },
+);
 
-  MusicItem? get currentItem => _currentItem;
-  Duration? get duration => _duration;
-  Duration? get currentTime => _currentTime;
-  bool get isPlaying => _player.playing;
-  bool get isLoading => _isLoading;
-  Stream<Duration?> get positionStream => _player.positionStream;
-  Stream<Duration?> get durationStream => _player.durationStream;
+class AudioState {
+  final MusicItem? currentItem;
+  final bool isPlaying;
+  final bool isLoading;
+  final Duration position;
+  final Duration duration;
 
-  AudioProvider() {
-    _player.positionStream.listen((position) {
-      _currentTime = position;
-      notifyListeners();
+  AudioState({
+    this.currentItem,
+    this.isPlaying = false,
+    this.isLoading = false,
+    this.position = Duration.zero,
+    this.duration = Duration.zero,
+  });
+
+  AudioState copyWith({
+    MusicItem? currentItem,
+    bool? isPlaying,
+    bool? isLoading,
+    Duration? position,
+    Duration? duration,
+  }) {
+    return AudioState(
+      currentItem: currentItem ?? this.currentItem,
+      isPlaying: isPlaying ?? this.isPlaying,
+      isLoading: isLoading ?? this.isLoading,
+      position: position ?? this.position,
+      duration: duration ?? this.duration,
+    );
+  }
+}
+
+class AudioNotifier extends AsyncNotifier<AudioState> {
+  late AudioPlayer _player;
+  StreamSubscription? _posSub;
+  StreamSubscription? _durSub;
+  StreamSubscription? _stateSub;
+
+  @override
+  FutureOr<AudioState> build() {
+    _player = AudioPlayer();
+
+    _posSub = _player.positionStream.listen((p) {
+      state = AsyncData(state.value!.copyWith(position: p));
     });
-    _player.durationStream.listen((duration) {
-      _duration = duration;
-      notifyListeners();
+
+    _durSub = _player.durationStream.listen((d) {
+      state = AsyncData(state.value!.copyWith(duration: d ?? Duration.zero));
     });
-    _player.playerStateStream.listen((state) {
-      notifyListeners();
+
+    _stateSub = _player.playerStateStream.listen((s) {
+      state = AsyncData(state.value!.copyWith(isPlaying: s.playing));
     });
+
+    ref.onDispose(() {
+      _posSub?.cancel();
+      _durSub?.cancel();
+      _stateSub?.cancel();
+      _player.dispose();
+    });
+
+    return AudioState();
   }
 
   Future<void> selectMusic(MusicItem item) async {
-    print(item.id);
-    _isLoading = true;
-    notifyListeners();
+    final currentState = state.value!;
+    state = AsyncData(
+      currentState.copyWith(isLoading: true, currentItem: item),
+    );
 
     try {
-      _currentItem = item;
       await _player.stop();
-
       if (item.id.startsWith('assets/')) {
-        await _player.setAsset(item.id);
+        await _player.setAsset(item.id, preload: false);
       } else {
-        await _player.setFilePath(item.id);
+        await _player.setFilePath(item.id, preload: false);
       }
-
-      await _player.play();
     } catch (e) {
-      debugPrint('Error: $e');
+      debugPrint('Audio Load Error: $e');
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      state = AsyncData(state.value!.copyWith(isLoading: false));
     }
   }
 
@@ -61,16 +100,9 @@ class AudioProvider extends ChangeNotifier {
     } else {
       await _player.play();
     }
-    notifyListeners();
   }
 
   Future<void> seek(Duration position) async {
     await _player.seek(position);
-  }
-
-  @override
-  void dispose() {
-    _player.dispose();
-    super.dispose();
   }
 }

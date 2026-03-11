@@ -1,16 +1,11 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'components/more_option_btn.dart';
 import 'models/music_items.dart';
-import 'package:provider/provider.dart';
 import 'providers/audio_provider.dart';
 
 void main() {
-  runApp(
-    ChangeNotifierProvider(
-      create: (context) => AudioProvider(),
-      child: const MyApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: MyApp()));
 }
 
 class MyApp extends StatelessWidget {
@@ -42,37 +37,46 @@ class _MyHomePageState extends State<MyHomePage> {
 
 class MainLayout extends StatelessWidget {
   const MainLayout({super.key});
+
   @override
   Widget build(BuildContext context) {
-    print("Main layout build");
-    return Stack(
+    return const Stack(
       children: [
-        const Center(child: Text('Waveform Area')),
-        Positioned(
-          bottom: 40,
-          right: 20,
-          child: Row(
-            children: [
-              PrimaryButton(
-                onPressed: () {},
-                shape: ButtonShape.circle,
-                child: const Icon(Icons.play_arrow),
-              ),
-              MoreOptionsBtn(
-                openMusicList: () {
-                  openMusicList(context);
-                },
-              ),
-            ],
-          ),
-        ),
+        Center(child: Text('Waveform Area')),
+        Positioned(bottom: 40, right: 20, child: PlaybackControls()),
       ],
     );
   }
 }
 
-void openMusicList(BuildContext context) {
-  final audioProvider = Provider.of<AudioProvider>(context, listen: false);
+class PlaybackControls extends ConsumerWidget {
+  const PlaybackControls({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final audioAsync = ref.watch(audioNotifierProvider);
+
+    return audioAsync.when(
+      data: (state) => Row(
+        children: [
+          PrimaryButton(
+            onPressed: () {
+              ref.read(audioNotifierProvider.notifier).playPause();
+            },
+            shape: ButtonShape.circle,
+            child: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
+          ),
+          MoreOptionsBtn(openMusicList: () => openMusicList(context, ref)),
+        ],
+      ),
+      loading: () => const CircularProgressIndicator(),
+      error: (err, stack) => const Icon(Icons.error),
+    );
+  }
+}
+
+void openMusicList(BuildContext context, WidgetRef ref) {
+  final audioState = ref.watch(audioNotifierProvider).value;
 
   final List<MusicItem> musicList = [
     MusicItem(
@@ -100,20 +104,15 @@ void openMusicList(BuildContext context) {
             const Text('Music List'),
             const Divider(),
             ...musicList.map((item) {
-              final isSelected = audioProvider.currentItem?.id == item.id;
+              final isSelected = audioState?.currentItem?.id == item.id;
               return GestureDetector(
                 onTap: () async {
-                  final audioProvider = Provider.of<AudioProvider>(
-                    context,
-                    listen: false,
-                  );
+                  if (audioState?.isLoading ?? false) return;
 
-                  if (audioProvider.isLoading) return;
+                  await ref
+                      .read(audioNotifierProvider.notifier)
+                      .selectMusic(item);
 
-                  // 執行異步音樂載入
-                  await audioProvider.selectMusic(item);
-
-                  // 在執行任何影響介面的操作前，檢查元件是否仍然掛載
                   if (context.mounted) {
                     closeOverlay(context);
                   }
@@ -152,3 +151,5 @@ void openMusicList(BuildContext context) {
     },
   );
 }
+
+void openSettingsControl(BuildContext context) {}

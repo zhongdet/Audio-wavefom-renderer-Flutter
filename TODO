@@ -1,1 +1,6 @@
 TODO: 修復select item時mp3檔案載入很久的問題
+DONE: 這可能是模擬器性能導致的
+
+---
+
+TODO: 遷移到riverpod, 不知道會不會噴錯
