@@ -1,15 +1,15 @@
-import 'dart:ui';
+import 'package:flutter/widgets.dart';
 
-enum AudioEncoder { webcodecsHw, webcodecsSw, ffmpeg }
+enum AudioEncoder { webcodecHw, webcodecSw, ffmpeg }
 
-class VisualizerConfig {
+@immutable
+class VisualizerSettings {
   final int barCount;
   final double barWidth;
   final double barHeightMultiplier;
   final double cornerRadius;
   final double totalWidth;
   final double spacing;
-  final Color color;
   final Color backgroundColor;
   final double positiveHeightScale;
   final double negativeHeightScale;
@@ -27,25 +27,24 @@ class VisualizerConfig {
   final double minFreq;
   final double maxFreq;
 
-  const VisualizerConfig({
+  const VisualizerSettings({
     this.barCount = 64,
     this.barWidth = 2.0,
     this.barHeightMultiplier = 1.0,
     this.cornerRadius = 0.0,
     this.totalWidth = 300.0,
     this.spacing = 1.0,
-    this.color = const Color(0xFFFFFFFF),
     this.backgroundColor = const Color(0xFF000000),
     this.positiveHeightScale = 1.0,
     this.negativeHeightScale = 1.0,
-    this.positiveColor = const Color(0xFF00FF00),
-    this.negativeColor = const Color(0xFFFF0000),
+    this.positiveColor = const Color.fromARGB(255, 255, 255, 255),
+    this.negativeColor = const Color.fromARGB(255, 72, 72, 72),
     this.decay = 0.1,
     this.attack = 0.1,
     this.contrast = 1.0,
     this.yOffset = 0.0,
     this.renderFps = 60,
-    this.encoder = AudioEncoder.webcodecsHw,
+    this.encoder = AudioEncoder.webcodecHw,
     this.softCeilingThreshold = 0.9,
     this.softCeilingStrength = 0.5,
     this.referenceFps = 60,
@@ -53,14 +52,13 @@ class VisualizerConfig {
     this.maxFreq = 20000.0,
   });
 
-  VisualizerConfig copyWith({
+  VisualizerSettings updateWith({
     int? barCount,
     double? barWidth,
     double? barHeightMultiplier,
     double? cornerRadius,
     double? totalWidth,
     double? spacing,
-    Color? color,
     Color? backgroundColor,
     double? positiveHeightScale,
     double? negativeHeightScale,
@@ -78,14 +76,13 @@ class VisualizerConfig {
     double? minFreq,
     double? maxFreq,
   }) {
-    return VisualizerConfig(
+    return VisualizerSettings(
       barCount: barCount ?? this.barCount,
       barWidth: barWidth ?? this.barWidth,
       barHeightMultiplier: barHeightMultiplier ?? this.barHeightMultiplier,
       cornerRadius: cornerRadius ?? this.cornerRadius,
       totalWidth: totalWidth ?? this.totalWidth,
       spacing: spacing ?? this.spacing,
-      color: color ?? this.color,
       backgroundColor: backgroundColor ?? this.backgroundColor,
       positiveHeightScale: positiveHeightScale ?? this.positiveHeightScale,
       negativeHeightScale: negativeHeightScale ?? this.negativeHeightScale,

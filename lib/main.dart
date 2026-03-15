@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
-import 'components/more_option_btn.dart';
-import 'models/music_items.dart';
-import 'providers/audio_provider.dart';
+import 'components/components.dart';
+import 'models/models.dart';
+import 'providers/providers.dart';
 
 void main() {
   runApp(const ProviderScope(child: MyApp()));
@@ -66,7 +66,10 @@ class PlaybackControls extends ConsumerWidget {
             shape: ButtonShape.circle,
             child: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
           ),
-          MoreOptionsBtn(openMusicList: () => openMusicList(context, ref)),
+          MoreOptionsBtn(
+            openMusicList: () => openMusicList(context, ref),
+            openWaveformSettings: () => openSettingsControl(context, ref),
+          ),
         ],
       ),
       loading: () => const CircularProgressIndicator(),
@@ -98,58 +101,116 @@ void openMusicList(BuildContext context, WidgetRef ref) {
     position: OverlayPosition.bottom,
     builder: (context) {
       return SizedBox(
-        height: 400,
-        child: Column(
-          children: [
-            const Text('Music List'),
-            const Divider(),
-            ...musicList.map((item) {
-              final isSelected = audioState?.currentItem?.id == item.id;
-              return GestureDetector(
-                onTap: () async {
-                  if (audioState?.isLoading ?? false) return;
+        height: 600,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            children: [
+              const Text('Music List'),
+              Gap(16),
+              const Divider(),
+              Gap(16),
+              ...musicList.map((item) {
+                final isSelected = audioState?.currentItem?.id == item.id;
+                return GestureDetector(
+                  onTap: () async {
+                    if (audioState?.isLoading ?? false) return;
 
-                  await ref
-                      .read(audioNotifierProvider.notifier)
-                      .selectMusic(item);
+                    await ref
+                        .read(audioNotifierProvider.notifier)
+                        .selectMusic(item);
 
-                  if (context.mounted) {
-                    closeOverlay(context);
-                  }
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.music_note),
-                      const Gap(12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(item.title),
-                            Text(
-                              '${(item.size / 1024 / 1024).toStringAsFixed(1)} MB',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ],
+                    if (context.mounted) {
+                      closeOverlay(context);
+                    }
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.music_note),
+                        const Gap(12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(item.title),
+                              Text(
+                                '${(item.size / 1024 / 1024).toStringAsFixed(1)} MB',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      if (isSelected)
-                        const Icon(Icons.check, color: Colors.green),
-                    ],
+                        if (isSelected)
+                          const Icon(Icons.check, color: Colors.green),
+                      ],
+                    ),
                   ),
-                ),
-              );
-            }),
-          ],
+                );
+              }),
+            ],
+          ),
         ),
       );
     },
   );
 }
 
-void openSettingsControl(BuildContext context) {}
+void openSettingsControl(BuildContext context, WidgetRef ref) {
+  final visualizerSettings = ref.watch(visualizerSettingsProvider);
+  openDrawer(
+    context: context,
+    position: OverlayPosition.bottom,
+    builder: (context) {
+      return SizedBox(
+        height: 600,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            children: [
+              const Text('Music List'),
+              const Gap(16),
+              const Divider(),
+              const Gap(16),
+              SettingsInput(
+                label: "Positive Height",
+                min: 1,
+                max: 10,
+                selector: (s) => s.positiveHeightScale,
+                onUpdate: (n, val) => n.update(
+                  (current) =>
+                      current.updateWith(positiveHeightScale: val.toDouble()),
+                ),
+              ),
+              const Gap(16),
+              SettingsInput(
+                label: "Negative Height",
+                min: 1,
+                max: 10,
+                selector: (s) => s.negativeHeightScale,
+                onUpdate: (n, val) => n.update(
+                  (current) =>
+                      current.updateWith(negativeHeightScale: val.toDouble()),
+                ),
+              ),
+              const Gap(16),
+              SettingsInput(
+                label: "bar width",
+                min: 1,
+                max: 10,
+                selector: (s) => s.barWidth,
+                onUpdate: (n, val) => n.update(
+                  (current) => current.updateWith(barWidth: val.toDouble()),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}

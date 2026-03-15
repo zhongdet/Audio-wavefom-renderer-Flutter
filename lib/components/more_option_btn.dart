@@ -89,7 +89,7 @@ class _MoreOptionsBtnState extends State<MoreOptionsBtn> {
               leading: Icon(Icons.settings),
               child: Text('Waveform Settings'),
               onPressed: (context) {
-                widget.openWaveformSettings;
+                widget.openWaveformSettings();
               },
             ),
             MenuDivider(),
