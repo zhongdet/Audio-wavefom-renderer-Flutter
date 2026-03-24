@@ -35,8 +35,8 @@ class VisualizerSettingsNotifier extends Notifier<VisualizerSettings> {
     double? softCeilingThreshold,
     double? softCeilingStrength,
     int? referenceFps,
-    double? minFreq,
-    double? maxFreq,
+    int? minFreq,
+    int? maxFreq,
   }) {
     state = state.updateWith(
       barCount: barCount,

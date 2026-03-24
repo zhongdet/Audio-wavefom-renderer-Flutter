@@ -24,8 +24,8 @@ class VisualizerSettings {
   final double softCeilingThreshold;
   final double softCeilingStrength;
   final int referenceFps;
-  final double minFreq;
-  final double maxFreq;
+  final int minFreq;
+  final int maxFreq;
 
   const VisualizerSettings({
     this.barCount = 64,
@@ -48,8 +48,8 @@ class VisualizerSettings {
     this.softCeilingThreshold = 0.9,
     this.softCeilingStrength = 0.5,
     this.referenceFps = 60,
-    this.minFreq = 20.0,
-    this.maxFreq = 20000.0,
+    this.minFreq = 20,
+    this.maxFreq = 20000,
   });
 
   VisualizerSettings updateWith({
@@ -73,8 +73,8 @@ class VisualizerSettings {
     double? softCeilingThreshold,
     double? softCeilingStrength,
     int? referenceFps,
-    double? minFreq,
-    double? maxFreq,
+    int? minFreq,
+    int? maxFreq,
   }) {
     return VisualizerSettings(
       barCount: barCount ?? this.barCount,
