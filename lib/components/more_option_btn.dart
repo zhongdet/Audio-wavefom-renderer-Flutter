@@ -3,6 +3,7 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 class MoreOptionsBtn extends StatefulWidget {
   final VoidCallback openMusicList;
   final VoidCallback openRenderQueue;
+  final VoidCallback addToRenderQueue;
   final VoidCallback uploadAudio;
   final VoidCallback openWaveformSettings;
   final VoidCallback openInfo;
@@ -11,6 +12,7 @@ class MoreOptionsBtn extends StatefulWidget {
     super.key,
     this.openMusicList = _openMusicList,
     this.openRenderQueue = _openRenderQueue,
+    this.addToRenderQueue = _addToRenderQueue,
     this.uploadAudio = _uploadAudio,
     this.openWaveformSettings = _openWaveformSettings,
     this.openInfo = _openInfo,
@@ -22,6 +24,10 @@ class MoreOptionsBtn extends StatefulWidget {
 
   static void _openRenderQueue() {
     print("open render queue");
+  }
+
+  static void _addToRenderQueue() {
+    print("add to render queue");
   }
 
   static void _uploadAudio() {
@@ -83,6 +89,20 @@ class _MoreOptionsBtnState extends State<MoreOptionsBtn> {
               child: Text('Render Queue'),
               onPressed: (context) {
                 widget.openRenderQueue();
+              },
+            ),
+            MenuButton(
+              leading: Icon(Icons.playlist_add),
+              child: Text('Add to Render Queue'),
+              onPressed: (context) {
+                widget.addToRenderQueue();
+              },
+            ),
+            MenuButton(
+              leading: Icon(Icons.playlist_add),
+              child: Text('Add to Render Queue'),
+              onPressed: (context) {
+                widget.addToRenderQueue();
               },
             ),
             MenuButton(

@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'components/components.dart';
-import 'models/models.dart';
+import 'components/visualizer.dart';
+import 'components/export_settings_drawer.dart';
+import 'components/render_queue_drawer.dart';
 import 'providers/providers.dart';
 
 void main() {
@@ -31,7 +33,20 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(child: MainLayout());
+    return Scaffold(
+      child: Stack(
+        children: [
+          const MainVisualizer(),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 40),
+              child: PlaybackControls(),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -40,10 +55,16 @@ class MainLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Stack(
+    return Stack(
       children: [
-        Center(child: Text('Waveform Area')),
-        Positioned(bottom: 40, right: 20, child: PlaybackControls()),
+        const MainVisualizer(),
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 40),
+            child: PlaybackControls(),
+          ),
+        ),
       ],
     );
   }
@@ -57,20 +78,34 @@ class PlaybackControls extends ConsumerWidget {
     final audioAsync = ref.watch(audioNotifierProvider);
 
     return audioAsync.when(
-      data: (state) => Row(
-        children: [
-          PrimaryButton(
-            onPressed: () {
-              ref.read(audioNotifierProvider.notifier).playPause();
-            },
-            shape: ButtonShape.circle,
-            child: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
-          ),
-          MoreOptionsBtn(
-            openMusicList: () => openMusicList(context, ref),
-            openWaveformSettings: () => openSettingsControl(context, ref),
-          ),
-        ],
+      data: (state) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _SeekSlider(state: state, ref: ref),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                PrimaryButton(
+                  onPressed: () {
+                    ref.read(audioNotifierProvider.notifier).playPause();
+                  },
+                  shape: ButtonShape.circle,
+                  child: Icon(state.isPlaying ? Icons.pause : Icons.play_arrow),
+                ),
+                MoreOptionsBtn(
+                  uploadAudio: () =>
+                      ref.read(visualizerProvider.notifier).pickAndLoadAudio(),
+                  openRenderQueue: () => openRenderQueueDrawer(context, ref),
+                  addToRenderQueue: () => openExportSettings(context, ref),
+                  openMusicList: () => openMusicList(context, ref),
+                  openWaveformSettings: () => openSettingsControl(context, ref),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
       loading: () => const CircularProgressIndicator(),
       error: (err, stack) => const Icon(Icons.error),
@@ -78,24 +113,80 @@ class PlaybackControls extends ConsumerWidget {
   }
 }
 
+class _SeekSlider extends ConsumerStatefulWidget {
+  final AudioState state;
+  final WidgetRef ref;
+
+  const _SeekSlider({required this.state, required this.ref});
+
+  @override
+  ConsumerState<_SeekSlider> createState() => _SeekSliderState();
+}
+
+class _SeekSliderState extends ConsumerState<_SeekSlider> {
+  double? _dragValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = widget.state.duration;
+    final position = widget.state.position;
+    final totalSeconds = duration.inSeconds.toDouble();
+    final currentSeconds = position.inSeconds.toDouble();
+    final value = totalSeconds > 0 ? currentSeconds / totalSeconds : 0.0;
+    final displayValue = _dragValue ?? value;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Row(
+            children: [
+              Text(
+                _formatDuration(
+                  Duration(seconds: (displayValue * totalSeconds).toInt()),
+                ),
+                style: const TextStyle(fontSize: 12),
+              ),
+              Flexible(
+                child: Slider(
+                  value: SliderValue.single(displayValue.clamp(0.0, 1.0)),
+                  onChanged: (v) {
+                    setState(() => _dragValue = v.value);
+                  },
+                  onChangeEnd: (v) {
+                    setState(() => _dragValue = null);
+                    final seekTo = Duration(
+                      seconds: (v.value * totalSeconds).toInt(),
+                    );
+                    widget.ref
+                        .read(audioNotifierProvider.notifier)
+                        .seek(seekTo);
+                  },
+                ),
+              ),
+              Text(
+                _formatDuration(duration),
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatDuration(Duration d) {
+    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final hours = d.inHours;
+    if (hours > 0) {
+      return '$hours:$minutes:$seconds';
+    }
+    return '$minutes:$seconds';
+  }
+}
+
 void openMusicList(BuildContext context, WidgetRef ref) {
-  final audioState = ref.watch(audioNotifierProvider).value;
-
-  final List<MusicItem> musicList = [
-    MusicItem(
-      title: 'test mp3',
-      id: 'assets/file_example_MP3_700KB.mp3',
-      size: 5 * 1024 * 1024,
-      duration: '2:45',
-    ),
-    MusicItem(
-      title: 'test wav',
-      id: 'assets/file_example_WAV_1MG.wav',
-      size: 8 * 1024 * 1024,
-      duration: '2:45',
-    ),
-  ];
-
   openDrawer(
     context: context,
     position: OverlayPosition.bottom,
@@ -110,48 +201,78 @@ void openMusicList(BuildContext context, WidgetRef ref) {
               Gap(16),
               const Divider(),
               Gap(16),
-              ...musicList.map((item) {
-                final isSelected = audioState?.currentItem?.id == item.id;
-                return GestureDetector(
-                  onTap: () async {
-                    if (audioState?.isLoading ?? false) return;
+              Expanded(
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final musicListState = ref.watch(musicListProvider);
+                    final audioState = ref.watch(audioNotifierProvider).value;
 
-                    await ref
-                        .read(audioNotifierProvider.notifier)
-                        .selectMusic(item);
-
-                    if (context.mounted) {
-                      closeOverlay(context);
-                    }
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.music_note),
-                        const Gap(12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(item.title),
-                              Text(
-                                '${(item.size / 1024 / 1024).toStringAsFixed(1)} MB',
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            ],
-                          ),
+                    if (musicListState.items.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          'No audio files loaded.\nUse Upload Audio to add files.',
                         ),
-                        if (isSelected)
-                          const Icon(Icons.check, color: Colors.green),
-                      ],
-                    ),
-                  ),
-                );
-              }),
+                      );
+                    }
+
+                    return ListView.builder(
+                      itemCount: musicListState.items.length,
+                      itemBuilder: (context, index) {
+                        final item = musicListState.items[index];
+                        final isSelected =
+                            musicListState.selectedId == item.id ||
+                            audioState?.currentItem?.id == item.id;
+
+                        return GestureDetector(
+                          onTap: () async {
+                            final isLoading = audioState?.isLoading ?? false;
+                            if (isLoading) return;
+
+                            ref
+                                .read(musicListProvider.notifier)
+                                .selectItem(item.id);
+
+                            await ref
+                                .read(visualizerProvider.notifier)
+                                .loadAudioFile(item.id);
+
+                            if (context.mounted) {
+                              closeOverlay(context);
+                            }
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.music_note),
+                                Gap(12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(item.title),
+                                      Text(
+                                        '${(item.size / 1024 / 1024).toStringAsFixed(1)} MB',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (isSelected)
+                                  const Icon(Icons.check, color: Colors.green),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
             ],
           ),
         ),
@@ -161,7 +282,6 @@ void openMusicList(BuildContext context, WidgetRef ref) {
 }
 
 void openSettingsControl(BuildContext context, WidgetRef ref) {
-  final visualizerSettings = ref.watch(visualizerSettingsProvider);
   openDrawer(
     context: context,
     position: OverlayPosition.bottom,
@@ -172,7 +292,7 @@ void openSettingsControl(BuildContext context, WidgetRef ref) {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
             children: [
-              const Text('Music List'),
+              const Text('Waveform Settings'),
               const Gap(16),
               const Divider(),
               const Gap(16),
@@ -199,12 +319,23 @@ void openSettingsControl(BuildContext context, WidgetRef ref) {
               ),
               const Gap(16),
               SettingsInput(
-                label: "bar width",
+                label: "Bar Width",
                 min: 1,
                 max: 10,
                 selector: (s) => s.barWidth,
                 onUpdate: (n, val) => n.update(
                   (current) => current.updateWith(barWidth: val.toDouble()),
+                ),
+              ),
+              const Gap(16),
+              SettingsInput(
+                label: "Bar Count",
+                min: 8,
+                max: 256,
+                step: 1,
+                selector: (s) => s.barCount.toDouble(),
+                onUpdate: (n, val) => n.update(
+                  (current) => current.updateWith(barCount: val.toInt()),
                 ),
               ),
             ],

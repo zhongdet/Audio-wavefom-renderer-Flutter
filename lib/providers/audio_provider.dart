@@ -5,9 +5,7 @@ import 'package:just_audio/just_audio.dart';
 import '../models/music_items.dart';
 
 final audioNotifierProvider = AsyncNotifierProvider<AudioNotifier, AudioState>(
-  () {
-    return AudioNotifier();
-  },
+  () => AudioNotifier(),
 );
 
 class AudioState {
@@ -52,17 +50,19 @@ class AudioNotifier extends AsyncNotifier<AudioState> {
   FutureOr<AudioState> build() {
     _player = AudioPlayer();
 
-    _posSub = _player.positionStream.listen((p) {
-      state = AsyncData(state.value!.copyWith(position: p));
-    });
+    _posSub = _player.positionStream.listen(
+      (p) => state = AsyncData(state.value!.copyWith(position: p)),
+    );
 
-    _durSub = _player.durationStream.listen((d) {
-      state = AsyncData(state.value!.copyWith(duration: d ?? Duration.zero));
-    });
+    _durSub = _player.durationStream.listen(
+      (d) => state = AsyncData(
+        state.value!.copyWith(duration: d ?? Duration.zero),
+      ),
+    );
 
-    _stateSub = _player.playerStateStream.listen((s) {
-      state = AsyncData(state.value!.copyWith(isPlaying: s.playing));
-    });
+    _stateSub = _player.playerStateStream.listen(
+      (s) => state = AsyncData(state.value!.copyWith(isPlaying: s.playing)),
+    );
 
     ref.onDispose(() {
       _posSub?.cancel();
@@ -104,5 +104,33 @@ class AudioNotifier extends AsyncNotifier<AudioState> {
 
   Future<void> seek(Duration position) async {
     await _player.seek(position);
+  }
+
+  Future<void> loadFile(String path) async {
+    final currentState = state.value!;
+    state = AsyncData(currentState.copyWith(isLoading: true));
+
+    try {
+      await _player.stop();
+      if (path.startsWith('assets/')) {
+        await _player.setAsset(path, preload: false);
+      } else {
+        await _player.setFilePath(path, preload: false);
+      }
+      state = AsyncData(
+        currentState.copyWith(
+          isLoading: false,
+          currentItem: MusicItem(
+            title: path.split('/').last,
+            id: path,
+            size: 0,
+            duration: '0:00',
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Audio Load Error: $e');
+      state = AsyncData(state.value!.copyWith(isLoading: false));
+    }
   }
 }

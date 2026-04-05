@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import '../core/visualizer_settings.dart' as core;
 
 enum AudioEncoder { webcodecHw, webcodecSw, ffmpeg }
 
@@ -28,7 +29,7 @@ class VisualizerSettings {
   final int maxFreq;
 
   const VisualizerSettings({
-    this.barCount = 64,
+    this.barCount = 12,
     this.barWidth = 2.0,
     this.barHeightMultiplier = 1.0,
     this.cornerRadius = 0.0,
@@ -99,6 +100,19 @@ class VisualizerSettings {
       referenceFps: referenceFps ?? this.referenceFps,
       minFreq: minFreq ?? this.minFreq,
       maxFreq: maxFreq ?? this.maxFreq,
+    );
+  }
+
+  core.VisualizerSettings toCoreSettings() {
+    return core.VisualizerSettings(
+      barCount: barCount,
+      attack: attack,
+      decay: decay,
+      contrast: contrast,
+      barHeightMultiplier: barHeightMultiplier,
+      softCeilingThreshold: softCeilingThreshold,
+      softCeilingStrength: softCeilingStrength,
+      referenceFps: referenceFps,
     );
   }
 }
