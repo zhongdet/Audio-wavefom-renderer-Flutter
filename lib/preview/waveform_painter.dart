@@ -21,5 +21,11 @@ class WaveformPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(WaveformPainter old) => !identical(heights, old.heights);
+  bool shouldRepaint(WaveformPainter old) {
+    if (heights.length != old.heights.length) return true;
+    for (int i = 0; i < heights.length; i++) {
+      if (heights[i] != old.heights[i]) return true;
+    }
+    return false;
+  }
 }

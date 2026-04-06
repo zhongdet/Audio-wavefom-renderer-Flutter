@@ -18,11 +18,13 @@ class MainVisualizer extends ConsumerWidget {
               aspectRatio: 16 / 9,
               child: ListenableBuilder(
                 listenable: preview,
-                builder: (context, _) => CustomPaint(
-                  painter: WaveformPainter(
-                    heights: preview.heights,
-                    waveformSamples: preview.waveformSamples,
-                    settings: settings.toCoreSettings(),
+                builder: (context, _) => RepaintBoundary(
+                  child: CustomPaint(
+                    painter: WaveformPainter(
+                      heights: preview.heights,
+                      waveformSamples: preview.waveformSamples,
+                      settings: settings.toCoreSettings(),
+                    ),
                   ),
                 ),
               ),

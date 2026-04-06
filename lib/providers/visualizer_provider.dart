@@ -69,18 +69,8 @@ class VisualizerNotifier extends Notifier<VisualizerState> {
       final position = next.value?.position ?? Duration.zero;
 
       if (isPlaying && !wasPlaying) {
-        _positionSub =
-            Stream.periodic(
-              const Duration(milliseconds: 16),
-              (_) =>
-                  ref.read(audioNotifierProvider).value?.position ??
-                  Duration.zero,
-            ).listen((pos) {
-              _previewController?.tick(pos);
-            });
+        _previewController?.tick(position);
       } else if (!isPlaying && wasPlaying) {
-        _positionSub?.cancel();
-        _positionSub = null;
         _previewController?.stop();
       } else if (isPlaying) {
         _previewController?.tick(position);

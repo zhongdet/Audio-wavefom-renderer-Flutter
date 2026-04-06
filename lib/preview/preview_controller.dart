@@ -35,7 +35,8 @@ class PreviewController extends ChangeNotifier {
     final frame = _processor.getFrameAt(position);
     const dt = 1.0 / 60;
 
-    _heights = _engine.step(frame.magnitudes, dt);
+    _engine.step(frame.magnitudes, dt);
+    _heights = _engine.currentHeights;
     _waveformSamples = frame.waveformSamples;
     notifyListeners();
   }

@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:io';
-import 'package:pool/pool.dart';
 import '../core/constants.dart';
 import '../core/physics_engine.dart';
 import '../core/visualizer_settings.dart';
@@ -41,10 +39,8 @@ class ExportCoordinator {
     final exporter = FFmpegExporter();
     final renderer = OffscreenRenderer();
     final engine = PhysicsEngine(_settings, _bands);
-    final pool = Pool(kPoolSize);
-    final pipe = File(await exporter.setupPipe());
 
-    final ffmpegFuture = exporter.executeCommand();
+    final rawPath = await exporter.setupRawFile();
 
     int frameIndex = 0;
     final totalFrames = _estimateTotalFrames();
@@ -54,28 +50,24 @@ class ExportCoordinator {
       for (final frame in frames) {
         if (_cancelled) break;
 
-        await pool.withResource(() async {
-          if (_cancelled) return;
-
-          final heights = engine.step(frame.magnitudes, kExportDt);
-          final pixels = await renderer.renderFrame(
-            heights,
-            frame.waveformSamples,
-            _settings,
-          );
-          await pipe.writeAsBytes(pixels, mode: FileMode.append, flush: false);
-          _progressController.add(frameIndex / totalFrames);
-          frameIndex++;
-        });
+        final heights = engine.step(frame.magnitudes, kExportDt);
+        final pixels = await renderer.renderFrame(
+          heights,
+          frame.waveformSamples,
+          _settings,
+        );
+        exporter.writeFrame(pixels);
+        _progressController.add(frameIndex / totalFrames);
+        frameIndex++;
       }
 
-      await exporter.closePipe();
-      final outputPath = await ffmpegFuture;
+      final outputPath = await exporter.executeCommand();
       _progressController.add(1.0);
       return outputPath;
     } catch (e) {
-      await exporter.closePipe();
       rethrow;
+    } finally {
+      await exporter.cleanup();
     }
   }
 

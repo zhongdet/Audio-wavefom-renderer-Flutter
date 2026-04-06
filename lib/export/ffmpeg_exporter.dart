@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit_config.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:path_provider/path_provider.dart';
 import '../core/constants.dart';
@@ -12,52 +12,59 @@ class FFmpegExportException implements Exception {
 }
 
 class FFmpegExporter {
-  String? _pipePath;
+  String? _rawFilePath;
   String? _outputPath;
+  IOSink? _rawFileSink;
 
-  Future<String> setupPipe() async {
+  Future<String> setupRawFile() async {
     final dir = await getTemporaryDirectory();
-    final pipesDir = Directory('${dir.path}/pipes');
-    if (!await pipesDir.exists()) {
-      await pipesDir.create(recursive: true);
-    }
-
-    _pipePath = await FFmpegKitConfig.registerNewFFmpegPipe();
+    _rawFilePath =
+        '${dir.path}/raw_frames_${DateTime.now().millisecondsSinceEpoch}.rgba';
     _outputPath =
         '${dir.path}/export_${DateTime.now().millisecondsSinceEpoch}.mp4';
-    return _pipePath!;
+
+    final rawFile = File(_rawFilePath!);
+    _rawFileSink = rawFile.openWrite(mode: FileMode.write);
+    return _rawFilePath!;
+  }
+
+  void writeFrame(Uint8List pixels) {
+    _rawFileSink?.add(pixels);
   }
 
   Future<String> executeCommand() async {
-    assert(_pipePath != null && _outputPath != null);
+    assert(_rawFilePath != null && _outputPath != null);
+    await _rawFileSink?.flush();
+    await _rawFileSink?.close();
+
     final cmd =
         '-f rawvideo '
         '-pixel_format rgba '
         '-video_size ${kExportWidth}x$kExportHeight '
         '-framerate $kExportFps '
-        '-i $_pipePath '
+        '-i $_rawFilePath '
         '-c:v libx264 '
         '-pix_fmt yuv420p '
         '-preset ultrafast '
         '-crf 23 '
         '$_outputPath';
 
-    final completer = Completer<String>();
-    await FFmpegKit.executeAsync(cmd, (session) async {
-      final rc = await session.getReturnCode();
-      if (ReturnCode.isSuccess(rc)) {
-        completer.complete(_outputPath!);
-      } else {
-        final log = await session.getOutput();
-        completer.completeError(FFmpegExportException(log ?? 'FFmpeg failed'));
-      }
-    });
-    return completer.future;
+    final session = await FFmpegKit.execute(cmd);
+    final rc = await session.getReturnCode();
+    if (ReturnCode.isSuccess(rc)) {
+      return _outputPath!;
+    } else {
+      final log = await session.getOutput();
+      throw FFmpegExportException(log ?? 'FFmpeg failed');
+    }
   }
 
-  Future<void> closePipe() async {
-    if (_pipePath != null) {
-      await FFmpegKitConfig.closeFFmpegPipe(_pipePath!);
+  Future<void> cleanup() async {
+    if (_rawFilePath != null) {
+      final rawFile = File(_rawFilePath!);
+      if (await rawFile.exists()) {
+        await rawFile.delete();
+      }
     }
   }
 }
