@@ -15,35 +15,24 @@ class PreviewController extends ChangeNotifier {
         maxFreq: settings.maxFreq.toDouble(),
       ),
       _heights = Float64List(settings.barCount),
-      _lastTickTime = null;
+      _stftFps = processor.sampleRate / (4096 * 0.5);
 
   final AudioProcessor _processor;
   final VisualizerSettings _settings;
   final VisualizerRenderer _renderer;
+  final double _stftFps;
 
   Float64List _heights;
-  DateTime? _lastTickTime;
 
   Float64List get heights => _heights;
 
-  double _getDefaultDt() => 1.0 / (_settings.referenceFps > 0 ? _settings.referenceFps : 60);
+  double get timerIntervalMs => 1000.0 / _stftFps;
 
   void tick(Duration position) {
     if (_processor.frames.isEmpty) return;
 
     final frame = _processor.getFrameAt(position);
-
-    // 计算实际 dt，与 TypeScript 代码一致
-    final now = DateTime.now();
-    double dt;
-    if (_lastTickTime != null) {
-      dt = now.difference(_lastTickTime!).inMicroseconds / 1e6;
-    } else {
-      dt = _getDefaultDt();
-    }
-    _lastTickTime = now;
-
-    if (dt <= 0) dt = _getDefaultDt();
+    final dt = 1.0 / _stftFps;
 
     _renderer.computeHeights(frame.magnitudes, dt);
     _heights = _renderer.currentHeights;
@@ -53,7 +42,6 @@ class PreviewController extends ChangeNotifier {
   void stop() {
     _renderer.reset();
     _heights = Float64List(_settings.barCount);
-    _lastTickTime = null;
     notifyListeners();
   }
 

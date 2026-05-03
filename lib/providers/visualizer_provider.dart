@@ -60,6 +60,27 @@ class VisualizerNotifier extends Notifier<VisualizerState> {
   ExportCoordinator? _exportCoordinator;
   StreamSubscription<double>? _exportProgressSub;
   StreamSubscription<Duration>? _positionSub;
+  Timer? _previewTimer;
+
+  void _startPreviewTimer() {
+    _stopPreviewTimer();
+    final intervalMs = _previewController?.timerIntervalMs ?? 16.0;
+    _previewTimer = Timer.periodic(
+      Duration(milliseconds: intervalMs.round()),
+      (_) {
+        final audioState = ref.read(audioNotifierProvider);
+        if (audioState.value?.isPlaying ?? false) {
+          final position = audioState.value?.position ?? Duration.zero;
+          _previewController?.tick(position);
+        }
+      },
+    );
+  }
+
+  void _stopPreviewTimer() {
+    _previewTimer?.cancel();
+    _previewTimer = null;
+  }
 
   @override
   VisualizerState build() {
@@ -69,18 +90,24 @@ class VisualizerNotifier extends Notifier<VisualizerState> {
       final position = next.value?.position ?? Duration.zero;
 
       if (isPlaying && !wasPlaying) {
+        _startPreviewTimer();
         _previewController?.tick(position);
       } else if (!isPlaying && wasPlaying) {
+        _stopPreviewTimer();
         _previewController?.stop();
-      } else if (isPlaying) {
-        _previewController?.tick(position);
       }
     });
 
     ref.listen(visualizerSettingsProvider, (prev, next) {
       final processor = _processor;
       if (processor == null) return;
-      
+
+      // 停止定时器（如果正在运行）
+      final wasPlaying = ref.read(audioNotifierProvider).value?.isPlaying ?? false;
+      if (wasPlaying) {
+        _stopPreviewTimer();
+      }
+
       _previewController?.dispose();
       _exportCoordinator?.dispose();
 
@@ -97,6 +124,11 @@ class VisualizerNotifier extends Notifier<VisualizerState> {
       _previewController = previewController;
       _exportCoordinator = exportCoordinator;
 
+      // 如果正在播放，重新启动定时器
+      if (wasPlaying) {
+        _startPreviewTimer();
+      }
+
       state = state.copyWith(
         previewController: previewController,
         exportCoordinator: exportCoordinator,
@@ -104,6 +136,7 @@ class VisualizerNotifier extends Notifier<VisualizerState> {
     });
 
     ref.onDispose(() {
+      _stopPreviewTimer();
       _positionSub?.cancel();
       _exportProgressSub?.cancel();
       _previewController?.dispose();
@@ -128,6 +161,7 @@ class VisualizerNotifier extends Notifier<VisualizerState> {
   }
 
   Future<void> loadAudioFile(String path) async {
+    _stopPreviewTimer();
     _positionSub?.cancel();
     _positionSub = null;
     _previewController?.dispose();

@@ -63,7 +63,10 @@ class ExportCoordinator {
 
   Future<String> _exportWithHardware({int? fpsOverride}) async {
     final exporter = HardwareExporter();
-    final renderer = OffscreenRenderer();
+    final renderer = OffscreenRenderer(
+      width: _settings.resolution.width,
+      height: _settings.resolution.height,
+    );
     final fps = fpsOverride ?? _stftFps.round();
     await exporter.setup(
       width: _settings.resolution.width,
@@ -100,7 +103,10 @@ class ExportCoordinator {
 
   Future<String> _exportWithFFmpeg() async {
     final exporter = FFmpegExporter();
-    final renderer = OffscreenRenderer();
+    final renderer = OffscreenRenderer(
+      width: _settings.resolution.width,
+      height: _settings.resolution.height,
+    );
 
     await exporter.setupRawFile();
 

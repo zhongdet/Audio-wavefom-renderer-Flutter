@@ -13,32 +13,31 @@ class PhysicsEngine {
   Float64List get currentHeights => Float64List.fromList(_heights);
 
   Float64List step(Float64List magnitudes, double dt) {
-    final dtRatio = dt / (1.0 / settings.referenceFps);
+    // 根據 dt 計算補償比率，參考 FPS 設為 settings.referenceFps 或預設 60
+    final double referenceFps = 60.0; 
+    final double dtRatio = dt / (1.0 / referenceFps);
+
+    // 應用精確的 Attack/Decay 插值
     final attack = 1 - pow(1 - settings.attack, dtRatio);
     final decay = pow(settings.decay, dtRatio);
-
-    // 计算全局最大值 (与 TypeScript 一致)
-    double globalMax = 0;
-    for (int i = 0; i < magnitudes.length; i++) {
-      if (magnitudes[i] > globalMax) globalMax = magnitudes[i];
-    }
-    if (globalMax < 0.001) globalMax = 0.001;
 
     for (int b = 0; b < bands.length; b++) {
       final (start, end) = bands[b];
 
-      // 取 band 内的最大值 (而非平均值)
+      // 取頻段內最大值
       double localMax = 0;
       final limit = end < magnitudes.length ? end : magnitudes.length;
       for (int bin = start; bin < limit; bin++) {
         if (magnitudes[bin] > localMax) localMax = magnitudes[bin];
       }
 
-      // 使用 TypeScript 的 target 公式
-      double target = pow(localMax / globalMax, settings.contrast).toDouble() *
+      // 棄用 globalMax，回歸絕對強度計算
+      // 這裡使用 0.007 作為基準縮放係數（與 TypeScript 版本一致）
+      double target = pow(localMax, settings.contrast).toDouble() * 
+          0.7 * 
           settings.barHeightMultiplier;
-      target *= 1.1; // 补偿係數
-      if (target < 0) target = 0;
+          
+      target = max(0, target);
 
       // Soft Ceiling 壓縮邏輯
       final threshold = settings.softCeilingThreshold;
@@ -48,17 +47,20 @@ class PhysicsEngine {
         target = threshold + (1 - exp(-excess * strength)) / strength;
       }
 
-      // 應用 Attack 與 Decay (包含 maxDropRatio)
+      // 應用 Attack 與 Decay
       if (target > _heights[b]) {
         _heights[b] += (target - _heights[b]) * attack;
       } else {
         double nextValue = _heights[b] * decay;
+        
+        // 保留原有的 maxDropRatio 結構
         const maxDropRatio = 1.0;
         if (_heights[b] - nextValue > _heights[b] * maxDropRatio) {
           nextValue = _heights[b] * (1 - maxDropRatio);
         }
         _heights[b] = nextValue;
       }
+      
       _heights[b] = max(0, _heights[b]);
     }
 

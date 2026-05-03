@@ -33,16 +33,39 @@ class MainVisualizer extends ConsumerWidget {
       child: preview != null
           ? AspectRatio(
               aspectRatio: 16 / 9,
-              child: ListenableBuilder(
-                listenable: preview,
-                builder: (context, _) => RepaintBoundary(
-                  child: CustomPaint(
-                    painter: SpectrumBarsPainter(
-                      heights: preview.heights,
-                      settings: settings,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final canvasWidth = constraints.maxWidth;
+                  final canvasHeight = constraints.maxHeight;
+
+                  // 计算缩放比例：使波形在预览区域中合适显示
+                  // 基于导出分辨率和预览区域的比例来调整波形参数
+                  final scale = canvasWidth / settings.resolution.width;
+
+                  // 调整波形参数以适应预览画布
+                  final adjustedSettings = settings.updateWith(
+                    totalWidth: settings.totalWidth * scale,
+                    barWidth: settings.barWidth * scale,
+                    spacing: settings.spacing * scale,
+                    cornerRadius: settings.cornerRadius * scale,
+                  );
+
+                  return SizedBox(
+                    width: canvasWidth,
+                    height: canvasHeight,
+                    child: ListenableBuilder(
+                      listenable: preview,
+                      builder: (context, _) => RepaintBoundary(
+                        child: CustomPaint(
+                          painter: SpectrumBarsPainter(
+                            heights: preview.heights,
+                            settings: adjustedSettings,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             )
           : const Text('Upload an audio file to begin'),
