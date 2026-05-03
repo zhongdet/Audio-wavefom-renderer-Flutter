@@ -1,7 +1,24 @@
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
-import '../preview/waveform_painter.dart';
+import '../core/spectrum_painter.dart';
+import '../models/visualizer_settings.dart';
 import '../providers/providers.dart';
+
+class SpectrumBarsPainter extends CustomPainter {
+  final Float64List heights;
+  final VisualizerSettings settings;
+
+  SpectrumBarsPainter({required this.heights, required this.settings});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    SpectrumPainter.drawSpectrum(canvas, size, heights, settings);
+  }
+
+  @override
+  bool shouldRepaint(SpectrumBarsPainter oldDelegate) => true;
+}
 
 class MainVisualizer extends ConsumerWidget {
   const MainVisualizer({super.key});
@@ -20,10 +37,9 @@ class MainVisualizer extends ConsumerWidget {
                 listenable: preview,
                 builder: (context, _) => RepaintBoundary(
                   child: CustomPaint(
-                    painter: WaveformPainter(
+                    painter: SpectrumBarsPainter(
                       heights: preview.heights,
-                      waveformSamples: preview.waveformSamples,
-                      settings: settings.toCoreSettings(),
+                      settings: settings,
                     ),
                   ),
                 ),

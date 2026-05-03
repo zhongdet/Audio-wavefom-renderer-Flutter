@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import '../core/visualizer_settings.dart' as core;
+import '../core/export_settings.dart';
 
 enum AudioEncoder { webcodecHw, webcodecSw, ffmpeg }
 
@@ -27,6 +28,16 @@ class VisualizerSettings {
   final int referenceFps;
   final int minFreq;
   final int maxFreq;
+  final ExportResolution resolution;
+  final ExportFps fps;
+  final ExportPreset preset;
+  final int crf;
+  final bool greenScreen;
+  final bool includeSpectrumBars;
+  final bool includeAudio;
+  final double barColorR;
+  final double barColorG;
+  final double barColorB;
 
   const VisualizerSettings({
     this.barCount = 12,
@@ -40,8 +51,8 @@ class VisualizerSettings {
     this.negativeHeightScale = 1.0,
     this.positiveColor = const Color.fromARGB(255, 255, 255, 255),
     this.negativeColor = const Color.fromARGB(255, 72, 72, 72),
-    this.decay = 0.1,
-    this.attack = 0.1,
+    this.decay = 0.6,
+    this.attack = 0.26,
     this.contrast = 1.0,
     this.yOffset = 0.0,
     this.renderFps = 60,
@@ -50,7 +61,17 @@ class VisualizerSettings {
     this.softCeilingStrength = 0.5,
     this.referenceFps = 60,
     this.minFreq = 20,
-    this.maxFreq = 20000,
+    this.maxFreq = 16000,
+    this.resolution = ExportResolution.hd720,
+    this.fps = ExportFps.fps30,
+    this.preset = ExportPreset.ultrafast,
+    this.crf = 23,
+    this.greenScreen = false,
+    this.includeSpectrumBars = true,
+    this.includeAudio = true,
+    this.barColorR = 0.0,
+    this.barColorG = 0.898,
+    this.barColorB = 1.0,
   });
 
   VisualizerSettings updateWith({
@@ -76,6 +97,16 @@ class VisualizerSettings {
     int? referenceFps,
     int? minFreq,
     int? maxFreq,
+    ExportResolution? resolution,
+    ExportFps? fps,
+    ExportPreset? preset,
+    int? crf,
+    bool? greenScreen,
+    bool? includeSpectrumBars,
+    bool? includeAudio,
+    double? barColorR,
+    double? barColorG,
+    double? barColorB,
   }) {
     return VisualizerSettings(
       barCount: barCount ?? this.barCount,
@@ -100,6 +131,16 @@ class VisualizerSettings {
       referenceFps: referenceFps ?? this.referenceFps,
       minFreq: minFreq ?? this.minFreq,
       maxFreq: maxFreq ?? this.maxFreq,
+      resolution: resolution ?? this.resolution,
+      fps: fps ?? this.fps,
+      preset: preset ?? this.preset,
+      crf: crf ?? this.crf,
+      greenScreen: greenScreen ?? this.greenScreen,
+      includeSpectrumBars: includeSpectrumBars ?? this.includeSpectrumBars,
+      includeAudio: includeAudio ?? this.includeAudio,
+      barColorR: barColorR ?? this.barColorR,
+      barColorG: barColorG ?? this.barColorG,
+      barColorB: barColorB ?? this.barColorB,
     );
   }
 

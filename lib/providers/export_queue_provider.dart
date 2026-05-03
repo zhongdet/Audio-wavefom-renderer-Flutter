@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../audio/audio_processor.dart';
-import '../core/export_settings.dart';
 import '../export/export_coordinator.dart';
-import '../core/visualizer_settings.dart';
+import '../models/visualizer_settings.dart';
 
 enum ExportStatus { queued, rendering, completed, failed, cancelled }
 
@@ -11,7 +10,7 @@ class ExportQueueItem {
   final String id;
   final String audioFilePath;
   final String audioFileName;
-  final ExportSettings settings;
+  final VisualizerSettings settings;
   final DateTime createdAt;
   ExportStatus status;
   double progress;
@@ -86,9 +85,9 @@ class ExportQueueNotifier extends Notifier<ExportQueueState> {
   void addToQueue(
     String audioFilePath,
     String audioFileName,
-    ExportSettings settings,
+    VisualizerSettings settings,
   ) {
-    final id = '${DateTime.now().millisecondsSinceEpoch}_${audioFileName}';
+    final id = '${DateTime.now().millisecondsSinceEpoch}_$audioFileName';
     final item = ExportQueueItem(
       id: id,
       audioFilePath: audioFilePath,
@@ -159,20 +158,10 @@ class ExportQueueNotifier extends Notifier<ExportQueueState> {
       item._processor = processor;
       await processor.load(item.audioFilePath);
 
-      final coreSettings = VisualizerSettings(
-        barCount: item.settings.barCount,
-        attack: 0.05,
-        decay: 0.92,
-        contrast: 1.2,
-        barHeightMultiplier: 1.0,
-        softCeilingThreshold: 0.7,
-        softCeilingStrength: 2.0,
-        referenceFps: item.settings.fps.value,
-      );
-
       final coordinator = ExportCoordinator(
         processor: processor,
-        settings: coreSettings,
+        settings: item.settings,
+        audioFilePath: item.audioFilePath,
       );
       item._coordinator = coordinator;
 

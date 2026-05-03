@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math';
 import 'dart:typed_data';
 import 'package:audio_decoder/audio_decoder.dart';
 import 'package:fftea/fftea.dart';
@@ -108,7 +109,6 @@ class AudioProcessor {
           .map(
             (r) => VisualizerFrame(
               magnitudes: r['magnitudes'] as Float64List,
-              waveformSamples: r['waveform'] as Float32List,
             ),
           )
           .toList();
@@ -146,11 +146,9 @@ class AudioProcessor {
 
       while (index + message.fftSize <= totalSamples) {
         final chunk = Float64List(message.fftSize);
-        final waveform = Float32List(message.fftSize);
 
         for (int i = 0; i < message.fftSize; i++) {
           chunk[i] = samples[index + i];
-          waveform[i] = samples[index + i];
         }
 
         final magnitudes = Float64List(message.fftSize ~/ 2);
@@ -158,11 +156,12 @@ class AudioProcessor {
           for (int i = 0; i < message.fftSize ~/ 2; i++) {
             final real = freq[i].x;
             final imag = freq[i].y;
-            magnitudes[i] = real * real + imag * imag;
+            final magnitude = sqrt(real * real + imag * imag) / (message.fftSize / 2);
+            magnitudes[i] = magnitude;
           }
         });
 
-        sendPort.send({'magnitudes': magnitudes, 'waveform': waveform});
+        sendPort.send({'magnitudes': magnitudes});
 
         index += hopSize;
       }

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/widgets.dart';
 import '../models/visualizer_settings.dart';
+import '../core/export_settings.dart';
 
 class VisualizerSettingsNotifier extends Notifier<VisualizerSettings> {
   @override
@@ -37,6 +38,16 @@ class VisualizerSettingsNotifier extends Notifier<VisualizerSettings> {
     int? referenceFps,
     int? minFreq,
     int? maxFreq,
+    ExportResolution? resolution,
+    ExportFps? fps,
+    ExportPreset? preset,
+    int? crf,
+     bool? greenScreen,
+    bool? includeSpectrumBars,
+    bool? includeAudio,
+    double? barColorR,
+    double? barColorG,
+    double? barColorB,
   }) {
     state = state.updateWith(
       barCount: barCount,
@@ -61,6 +72,16 @@ class VisualizerSettingsNotifier extends Notifier<VisualizerSettings> {
       referenceFps: referenceFps,
       minFreq: minFreq,
       maxFreq: maxFreq,
+      resolution: resolution,
+      fps: fps,
+      preset: preset,
+      crf: crf,
+      greenScreen: greenScreen,
+      includeSpectrumBars: includeSpectrumBars,
+      includeAudio: includeAudio,
+      barColorR: barColorR,
+      barColorG: barColorG,
+      barColorB: barColorB,
     );
   }
 }

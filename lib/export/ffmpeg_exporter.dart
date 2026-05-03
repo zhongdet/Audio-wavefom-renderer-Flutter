@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:path_provider/path_provider.dart';
-import '../core/constants.dart';
 
 class FFmpegExportException implements Exception {
   FFmpegExportException(this.message);
@@ -32,22 +31,29 @@ class FFmpegExporter {
     _rawFileSink?.add(pixels);
   }
 
-  Future<String> executeCommand() async {
+  Future<String> executeCommand({
+    required int width,
+    required int height,
+    required int fps,
+    required String preset,
+    required int crf,
+  }) async {
     assert(_rawFilePath != null && _outputPath != null);
     await _rawFileSink?.flush();
     await _rawFileSink?.close();
 
-    final cmd =
-        '-f rawvideo '
+    String quote(String path) => "'${path.replaceAll("'", "'\\''")}'";
+
+    final cmd = '-f rawvideo '
         '-pixel_format rgba '
-        '-video_size ${kExportWidth}x$kExportHeight '
-        '-framerate $kExportFps '
-        '-i $_rawFilePath '
+        '-video_size ${width}x$height '
+        '-framerate $fps '
+        '-i ${quote(_rawFilePath!)} '
         '-c:v libx264 '
         '-pix_fmt yuv420p '
-        '-preset ultrafast '
-        '-crf 23 '
-        '$_outputPath';
+        '-preset $preset '
+        '-crf $crf '
+        '${quote(_outputPath!)}';
 
     final session = await FFmpegKit.execute(cmd);
     final rc = await session.getReturnCode();
@@ -56,6 +62,45 @@ class FFmpegExporter {
     } else {
       final log = await session.getOutput();
       throw FFmpegExportException(log ?? 'FFmpeg failed');
+    }
+  }
+
+  Future<String> muxAudio({
+    required String videoPath,
+    required String audioPath,
+    required String outputPath,
+    int audioBitrate = 192,
+  }) async {
+    final videoFile = File(videoPath);
+    final audioFile = File(audioPath);
+
+    if (!await videoFile.exists()) {
+      throw FFmpegExportException('Video file not found: $videoPath');
+    }
+    if (!await audioFile.exists()) {
+      throw FFmpegExportException('Audio file not found: $audioPath');
+    }
+
+    String quote(String path) => "'${path.replaceAll("'", "'\\''")}'";
+
+    final cmd = '-i ${quote(videoPath)} '
+        '-i ${quote(audioPath)} '
+        '-c:v copy '
+        '-c:a aac '
+        '-b:a ${audioBitrate}k '
+        '-map 0:v '
+        '-map 1:a '
+        '-shortest '
+        '${quote(outputPath)}';
+
+    print('FFmpeg mux cmd: $cmd');
+    final session = await FFmpegKit.execute(cmd);
+    final rc = await session.getReturnCode();
+    if (ReturnCode.isSuccess(rc)) {
+      return outputPath;
+    } else {
+      final log = await session.getOutput();
+      throw FFmpegExportException('FFmpeg mux audio failed (rc=$rc): $log');
     }
   }
 

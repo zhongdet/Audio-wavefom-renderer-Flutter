@@ -3,6 +3,7 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 import '../core/export_settings.dart';
 import '../providers/export_queue_provider.dart';
 import '../providers/visualizer_provider.dart';
+import '../providers/visualizer_settings_provider.dart';
 
 void openExportSettings(BuildContext context, WidgetRef ref) {
   final visState = ref.read(visualizerProvider);
@@ -53,10 +54,34 @@ class _ExportSettingsContent extends ConsumerStatefulWidget {
 
 class _ExportSettingsContentState
     extends ConsumerState<_ExportSettingsContent> {
-  ExportSettings _settings = const ExportSettings();
+
+  void _handleAddToQueue() {
+    final visualizerSettings = ref.read(visualizerSettingsProvider);
+    ref.read(exportQueueProvider.notifier).addToQueue(
+          widget.audioFilePath,
+          widget.audioFileName,
+          visualizerSettings,
+        );
+    showToast(
+      context: widget.rootContext,
+      builder: (context, overlay) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF18181B),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Text(
+          'Added to render queue',
+          style: TextStyle(color: Colors.white),
+        ),
+      ),
+    );
+    closeOverlay(context);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final settings = ref.watch(visualizerSettingsProvider);
     return SizedBox(
       height: 600,
       child: Padding(
@@ -72,127 +97,88 @@ class _ExportSettingsContentState
                 children: [
                   _SelectRow<ExportResolution>(
                     label: 'Resolution',
-                    value: _settings.resolution,
+                    value: settings.resolution,
                     items: ExportResolution.values,
                     itemLabel: (r) => '${r.width}x${r.height}',
                     onChanged: (v) {
                       if (v != null) {
-                        setState(
-                          () => _settings = _settings.copyWith(resolution: v),
-                        );
+                        ref.read(visualizerSettingsProvider.notifier).patch(
+                              resolution: v,
+                            );
                       }
                     },
                   ),
                   _SelectRow<ExportFps>(
                     label: 'FPS',
-                    value: _settings.fps,
+                    value: settings.fps,
                     items: ExportFps.values,
                     itemLabel: (f) => '${f.value} fps',
                     onChanged: (v) {
                       if (v != null) {
-                        setState(() => _settings = _settings.copyWith(fps: v));
+                        ref.read(visualizerSettingsProvider.notifier).patch(
+                              fps: v,
+                            );
                       }
                     },
                   ),
                   _SelectRow<ExportPreset>(
                     label: 'Preset',
-                    value: _settings.preset,
+                    value: settings.preset,
                     items: ExportPreset.values,
                     itemLabel: (p) => p.value,
                     onChanged: (v) {
                       if (v != null) {
-                        setState(
-                          () => _settings = _settings.copyWith(preset: v),
-                        );
+                        ref.read(visualizerSettingsProvider.notifier).patch(
+                              preset: v,
+                            );
                       }
                     },
                   ),
                   _ToggleRow(
                     label: 'Green Screen',
-                    value: _settings.greenScreen,
+                    value: settings.greenScreen,
                     onChanged: (v) {
-                      setState(
-                        () => _settings = _settings.copyWith(greenScreen: v),
-                      );
-                    },
-                  ),
-                  _ToggleRow(
-                    label: 'Waveform',
-                    value: _settings.includeWaveform,
-                    onChanged: (v) {
-                      setState(
-                        () =>
-                            _settings = _settings.copyWith(includeWaveform: v),
-                      );
+                      ref.read(visualizerSettingsProvider.notifier).patch(
+                            greenScreen: v,
+                          );
                     },
                   ),
                   _ToggleRow(
                     label: 'Spectrum Bars',
-                    value: _settings.includeSpectrumBars,
+                    value: settings.includeSpectrumBars,
                     onChanged: (v) {
-                      setState(
-                        () => _settings = _settings.copyWith(
-                          includeSpectrumBars: v,
-                        ),
-                      );
+                      ref.read(visualizerSettingsProvider.notifier).patch(
+                            includeSpectrumBars: v,
+                          );
                     },
                   ),
-                  _SliderRow(
-                    label: 'Bar Count',
-                    value: _settings.barCount.toDouble(),
-                    min: 8,
-                    max: 256,
+                  _ToggleRow(
+                    label: 'Include Audio',
+                    value: settings.includeAudio,
                     onChanged: (v) {
-                      setState(
-                        () =>
-                            _settings = _settings.copyWith(barCount: v.toInt()),
-                      );
+                      ref.read(visualizerSettingsProvider.notifier).patch(
+                            includeAudio: v,
+                          );
                     },
                   ),
                   _SliderRow(
                     label: 'Quality (CRF)',
-                    value: _settings.crf.toDouble(),
+                    value: settings.crf.toDouble(),
                     min: 0,
                     max: 51,
                     onChanged: (v) {
-                      setState(
-                        () => _settings = _settings.copyWith(crf: v.toInt()),
-                      );
+                      ref.read(visualizerSettingsProvider.notifier).patch(
+                            crf: v.toInt(),
+                          );
                     },
                   ),
                 ],
               ),
             ),
             const Gap(16),
-            PrimaryButton(
-              onPressed: () {
-                ref
-                    .read(exportQueueProvider.notifier)
-                    .addToQueue(
-                      widget.audioFilePath,
-                      widget.audioFileName,
-                      _settings,
-                    );
-                showToast(
-                  context: widget.rootContext,
-                  builder: (context, overlay) => Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF18181B),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'Added to render queue',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                );
-                closeOverlay(context);
-              },
-              child: const Text('Add to Render Queue'),
+              PrimaryButton(
+                onPressed: _handleAddToQueue,
+                child: const Text('Add to Render Queue'),
             ),
             const Gap(16),
           ],

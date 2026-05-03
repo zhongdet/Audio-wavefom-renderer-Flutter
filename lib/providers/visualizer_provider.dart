@@ -77,6 +77,32 @@ class VisualizerNotifier extends Notifier<VisualizerState> {
       }
     });
 
+    ref.listen(visualizerSettingsProvider, (prev, next) {
+      final processor = _processor;
+      if (processor == null) return;
+      
+      _previewController?.dispose();
+      _exportCoordinator?.dispose();
+
+      final filePath = state.filePath;
+      if (filePath == null) return;
+
+      final previewController = PreviewController(processor, next);
+      final exportCoordinator = ExportCoordinator(
+        processor: processor,
+        settings: next,
+        audioFilePath: filePath,
+      );
+
+      _previewController = previewController;
+      _exportCoordinator = exportCoordinator;
+
+      state = state.copyWith(
+        previewController: previewController,
+        exportCoordinator: exportCoordinator,
+      );
+    });
+
     ref.onDispose(() {
       _positionSub?.cancel();
       _exportProgressSub?.cancel();
@@ -113,13 +139,11 @@ class VisualizerNotifier extends Notifier<VisualizerState> {
     await processor.load(path);
 
     final settings = ref.read(visualizerSettingsProvider);
-    final previewController = PreviewController(
-      processor,
-      settings.toCoreSettings(),
-    );
+    final previewController = PreviewController(processor, settings);
     final exportCoordinator = ExportCoordinator(
       processor: processor,
-      settings: settings.toCoreSettings(),
+      settings: settings,
+      audioFilePath: path,
     );
 
     _processor = processor;

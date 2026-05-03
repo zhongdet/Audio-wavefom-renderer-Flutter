@@ -13,9 +13,9 @@ void main() {
       expect(exporter, isNotNull);
     });
 
-    test('closePipe is safe to call without setupPipe', () async {
+    test('cleanup is safe to call without setup', () async {
       final exporter = FFmpegExporter();
-      await exporter.closePipe();
+      await exporter.cleanup();
     });
   });
 }
