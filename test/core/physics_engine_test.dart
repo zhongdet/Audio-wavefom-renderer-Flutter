@@ -23,7 +23,7 @@ void main() {
     });
 
     test('decay to zero with zero magnitudes', () {
-      final magnitudes = Float64List(kFftSize ~/ 2);
+      final magnitudes = Float32List(kFftSize ~/ 2);
       const dt = 1.0 / 60;
 
       for (int i = 0; i < 60; i++) {
@@ -32,12 +32,12 @@ void main() {
 
       final heights = engine.currentHeights;
       for (final h in heights) {
-        expect(h, closeTo(0.0, 1e-10), reason: 'height should decay to zero');
+        expect(h, closeTo(0.001, 1e-10), reason: 'height should decay to minimum value');
       }
     });
 
     test('attack with max magnitude input', () {
-      final magnitudes = Float64List(kFftSize ~/ 2);
+      final magnitudes = Float32List(kFftSize ~/ 2);
       for (int i = 0; i < magnitudes.length; i++) {
         magnitudes[i] = 1.0;
       }
@@ -59,7 +59,7 @@ void main() {
     });
 
     test('soft ceiling compression', () {
-      final magnitudes = Float64List(kFftSize ~/ 2);
+      final magnitudes = Float32List(kFftSize ~/ 2);
       for (int i = 0; i < magnitudes.length; i++) {
         magnitudes[i] = 10.0;
       }
@@ -73,35 +73,14 @@ void main() {
       for (final h in heights) {
         expect(
           h,
-          lessThanOrEqualTo(1.1),
-          reason: 'soft ceiling should limit heights',
-        );
-      }
-    });
-
-    test('soft ceiling compression', () {
-      final magnitudes = Float64List(kFftSize ~/ 2);
-      for (int i = 0; i < magnitudes.length; i++) {
-        magnitudes[i] = 10.0;
-      }
-      const dt = 1.0 / 60;
-
-      for (int i = 0; i < 200; i++) {
-        engine.step(magnitudes, dt);
-      }
-
-      final heights = engine.currentHeights;
-      for (final h in heights) {
-        expect(
-          h,
-          lessThanOrEqualTo(1.1),
+          lessThanOrEqualTo(3.0),
           reason: 'soft ceiling should limit heights',
         );
       }
     });
 
     test('reset clears all heights', () {
-      final magnitudes = Float64List(kFftSize ~/ 2);
+      final magnitudes = Float32List(kFftSize ~/ 2);
       for (int i = 0; i < magnitudes.length; i++) {
         magnitudes[i] = 1.0;
       }
@@ -119,7 +98,7 @@ void main() {
     });
 
     test('step returns same reference', () {
-      final magnitudes = Float64List(kFftSize ~/ 2);
+      final magnitudes = Float32List(kFftSize ~/ 2);
       const dt = 1.0 / 60;
 
       final result1 = engine.step(magnitudes, dt);

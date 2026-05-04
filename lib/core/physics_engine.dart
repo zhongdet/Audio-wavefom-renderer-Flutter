@@ -10,9 +10,9 @@ class PhysicsEngine {
   PhysicsEngine(this.settings, this.bands)
     : _heights = Float64List(bands.length);
 
-  Float64List get currentHeights => Float64List.fromList(_heights);
+  Float64List get currentHeights => _heights;
 
-  Float64List step(Float64List magnitudes, double dt) {
+  Float64List step(Float32List magnitudes, double dt) {
     // 根據 dt 計算補償比率，參考 FPS 設為 settings.referenceFps 或預設 60
     final double referenceFps = 60.0; 
     final double dtRatio = dt / (1.0 / referenceFps);
@@ -61,7 +61,7 @@ class PhysicsEngine {
         _heights[b] = nextValue;
       }
       
-      _heights[b] = max(0, _heights[b]);
+      _heights[b] = max(0.001, _heights[b]);
     }
 
     return _heights;

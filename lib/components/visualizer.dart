@@ -29,20 +29,29 @@ class MainVisualizer extends ConsumerWidget {
     final preview = visState.previewController;
     final settings = ref.watch(visualizerSettingsProvider);
 
-    return Center(
-      child: preview != null
-          ? AspectRatio(
-              aspectRatio: 16 / 9,
-              child: LayoutBuilder(
+    return SizedBox.expand(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: preview != null
+            ? LayoutBuilder(
                 builder: (context, constraints) {
-                  final canvasWidth = constraints.maxWidth;
-                  final canvasHeight = constraints.maxHeight;
+                  // 计算16:9尺寸，尽可能填满可用空间
+                  final maxWidth = constraints.maxWidth;
+                  final maxHeight = constraints.maxHeight;
 
-                  // 计算缩放比例：使波形在预览区域中合适显示
-                  // 基于导出分辨率和预览区域的比例来调整波形参数
-                  final scale = canvasWidth / settings.resolution.width;
+                  double width, height;
+                  if (maxWidth / maxHeight > 16 / 9) {
+                    // 以高度为基准
+                    height = maxHeight;
+                    width = height * 16 / 9;
+                  } else {
+                    // 以宽度为基准
+                    width = maxWidth;
+                    height = width * 9 / 16;
+                  }
 
-                  // 调整波形参数以适应预览画布
+                  final scale = width / settings.resolution.width;
+
                   final adjustedSettings = settings.updateWith(
                     totalWidth: settings.totalWidth * scale,
                     barWidth: settings.barWidth * scale,
@@ -50,25 +59,27 @@ class MainVisualizer extends ConsumerWidget {
                     cornerRadius: settings.cornerRadius * scale,
                   );
 
-                  return SizedBox(
-                    width: canvasWidth,
-                    height: canvasHeight,
-                    child: ListenableBuilder(
-                      listenable: preview,
-                      builder: (context, _) => RepaintBoundary(
-                        child: CustomPaint(
-                          painter: SpectrumBarsPainter(
-                            heights: preview.heights,
-                            settings: adjustedSettings,
+                  return Center(
+                    child: SizedBox(
+                      width: width,
+                      height: height,
+                      child: ListenableBuilder(
+                        listenable: preview,
+                        builder: (context, _) => RepaintBoundary(
+                          child: CustomPaint(
+                            painter: SpectrumBarsPainter(
+                              heights: preview.heights,
+                              settings: adjustedSettings,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   );
                 },
-              ),
-            )
-          : const Text('Upload an audio file to begin'),
+              )
+            : const Center(child: Text('Upload an audio file to begin')),
+      ),
     );
   }
 }

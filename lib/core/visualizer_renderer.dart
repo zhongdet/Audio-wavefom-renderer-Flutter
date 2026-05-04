@@ -27,7 +27,7 @@ class VisualizerRenderer {
     );
   }
 
-  Float64List computeHeights(Float64List magnitudes, double dt) {
+  Float64List computeHeights(Float32List magnitudes, double dt) {
     return _engine.step(magnitudes, dt);
   }
 

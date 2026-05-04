@@ -4,6 +4,7 @@ import '../core/visualizer_renderer.dart';
 import '../audio/audio_processor.dart';
 import '../models/visualizer_settings.dart';
 import '../core/constants.dart';
+import '../core/visualizer_frame.dart';
 import 'offscreen_renderer.dart';
 import 'ffmpeg_exporter.dart';
 import 'hardware_exporter.dart';
@@ -39,29 +40,28 @@ class ExportCoordinator {
 
   double get _stftFps => _processor.sampleRate / (kFftSize * kHopRatio);
 
-  int _estimateTotalFrames() {
-    return _processor.frames.length;
-  }
-
   VisualizerSettings get settings => _settings;
 
   Future<String> startExport() async {
     _cancelled = false;
 
+    // 导出前，确保所有帧都已计算完成
+    final frames = await _processor.getAllFrames();
+
     // 含音频时，统一使用硬件编码生成无声视频 + FFmpeg 混流
     // 避免 FFmpeg 导出产生的 RGBA 临时文件占满存储
     if (_settings.includeAudio) {
-      return await _exportWithHardwareAndMuxAudio();
+      return await _exportWithHardwareAndMuxAudio(frames);
     }
 
     if (method == ExportMethod.hardware) {
-      return await _exportWithHardware();
+      return await _exportWithHardware(frames);
     } else {
-      return await _exportWithFFmpeg();
+      return await _exportWithFFmpeg(frames);
     }
   }
 
-  Future<String> _exportWithHardware({int? fpsOverride}) async {
+  Future<String> _exportWithHardware(List<VisualizerFrame> frames, {int? fpsOverride}) async {
     final exporter = HardwareExporter();
     final renderer = OffscreenRenderer(
       width: _settings.resolution.width,
@@ -75,11 +75,10 @@ class ExportCoordinator {
     );
 
     int frameIndex = 0;
-    final totalFrames = _estimateTotalFrames();
+    final totalFrames = frames.length;
     final dt = 1.0 / _stftFps;
 
     try {
-      final frames = _processor.frames;
       for (final frame in frames) {
         if (_cancelled) break;
 
@@ -101,7 +100,7 @@ class ExportCoordinator {
     }
   }
 
-  Future<String> _exportWithFFmpeg() async {
+  Future<String> _exportWithFFmpeg(List<VisualizerFrame> frames) async {
     final exporter = FFmpegExporter();
     final renderer = OffscreenRenderer(
       width: _settings.resolution.width,
@@ -111,11 +110,10 @@ class ExportCoordinator {
     await exporter.setupRawFile();
 
     int frameIndex = 0;
-    final totalFrames = _estimateTotalFrames();
+    final totalFrames = frames.length;
     final dt = 1.0 / _stftFps;
 
     try {
-      final frames = _processor.frames;
       for (final frame in frames) {
         if (_cancelled) break;
 
@@ -145,10 +143,10 @@ class ExportCoordinator {
     }
   }
 
-  Future<String> _exportWithHardwareAndMuxAudio() async {
+  Future<String> _exportWithHardwareAndMuxAudio(List<VisualizerFrame> frames) async {
     // 使用正确的 FPS 生成无声视频，匹配音频时长
     final correctFps = _stftFps.round();
-    final silentVideoPath = await _exportWithHardware(fpsOverride: correctFps);
+    final silentVideoPath = await _exportWithHardware(frames, fpsOverride: correctFps);
 
     // 用 FFmpeg 混入音频
     final exporter = FFmpegExporter();
