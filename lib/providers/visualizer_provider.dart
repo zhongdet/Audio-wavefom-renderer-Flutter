@@ -62,15 +62,19 @@ class VisualizerNotifier extends Notifier<VisualizerState> {
   StreamSubscription<Duration>? _positionSub;
   Timer? _previewTimer;
 
+  // Position interpolation fields
+  DateTime? _playbackStartTime;
+  Duration? _playbackStartPosition;
+  bool _isPlaying = false;
+
   void _startPreviewTimer() {
     _stopPreviewTimer();
-    final intervalMs = _previewController?.timerIntervalMs ?? 16.0;
+    final intervalMs = _previewController?.timerIntervalMs ?? (1000.0 / 60.0);
     _previewTimer = Timer.periodic(
       Duration(milliseconds: intervalMs.round()),
       (_) {
-        final audioState = ref.read(audioNotifierProvider);
-        if (audioState.value?.isPlaying ?? false) {
-          final position = audioState.value?.position ?? Duration.zero;
+        if (_isPlaying) {
+          final position = _getInterpolatedPosition();
           _previewController?.tick(position);
         }
       },
@@ -82,69 +86,92 @@ class VisualizerNotifier extends Notifier<VisualizerState> {
     _previewTimer = null;
   }
 
-  @override
-  VisualizerState build() {
+  Duration _getInterpolatedPosition() {
+    if (!_isPlaying || _playbackStartTime == null || _playbackStartPosition == null) {
+      return _playbackStartPosition ?? Duration.zero;
+    }
+
+    final elapsed = DateTime.now().difference(_playbackStartTime!);
+    final interpolated = _playbackStartPosition! + elapsed;
+    return interpolated;
+  }
+
+   @override
+   VisualizerState build() {
     ref.listen(audioNotifierProvider, (prev, next) {
       final wasPlaying = prev?.value?.isPlaying ?? false;
       final isPlaying = next.value?.isPlaying ?? false;
       final position = next.value?.position ?? Duration.zero;
 
       if (isPlaying && !wasPlaying) {
+        // Just started playing
+        _playbackStartTime = DateTime.now();
+        _playbackStartPosition = position;
+        _isPlaying = true;
         _startPreviewTimer();
         _previewController?.tick(position);
       } else if (!isPlaying && wasPlaying) {
+        // Just stopped playing
         _stopPreviewTimer();
         _previewController?.stop();
+        _playbackStartTime = null;
+        _playbackStartPosition = null;
+        _isPlaying = false;
+      } else if (isPlaying) {
+        // Still playing - update base position for interpolation
+        _playbackStartTime = DateTime.now();
+        _playbackStartPosition = position;
       }
     });
 
-    ref.listen(visualizerSettingsProvider, (prev, next) {
-      final processor = _processor;
-      if (processor == null) return;
+     ref.listen(visualizerSettingsProvider, (prev, next) {
+       final processor = _processor;
+       if (processor == null) return;
 
-      // 停止定时器（如果正在运行）
-      final wasPlaying = ref.read(audioNotifierProvider).value?.isPlaying ?? false;
-      if (wasPlaying) {
+       final wasPlaying = ref.read(audioNotifierProvider).value?.isPlaying ?? false;
+       _stopPreviewTimer();
+
+       _previewController?.dispose();
+       _exportCoordinator?.dispose();
+
+       final filePath = state.filePath;
+       if (filePath == null) return;
+
+       final previewController = PreviewController(processor, next);
+       final exportCoordinator = ExportCoordinator(
+         processor: processor,
+         settings: next,
+         audioFilePath: filePath,
+       );
+
+       _previewController = previewController;
+       _exportCoordinator = exportCoordinator;
+
+       // 如果正在播放，重新启动定时器
+       if (wasPlaying) {
+         _startPreviewTimer();
+       }
+
+       state = state.copyWith(
+         previewController: previewController,
+         exportCoordinator: exportCoordinator,
+       );
+     });
+
+      ref.onDispose(() {
         _stopPreviewTimer();
-      }
-
-      _previewController?.dispose();
-      _exportCoordinator?.dispose();
-
-      final filePath = state.filePath;
-      if (filePath == null) return;
-
-      final previewController = PreviewController(processor, next);
-      final exportCoordinator = ExportCoordinator(
-        processor: processor,
-        settings: next,
-        audioFilePath: filePath,
-      );
-
-      _previewController = previewController;
-      _exportCoordinator = exportCoordinator;
-
-      // 如果正在播放，重新启动定时器
-      if (wasPlaying) {
-        _startPreviewTimer();
-      }
-
-      state = state.copyWith(
-        previewController: previewController,
-        exportCoordinator: exportCoordinator,
-      );
-    });
-
-    ref.onDispose(() {
-      _stopPreviewTimer();
-      _positionSub?.cancel();
-      _exportProgressSub?.cancel();
-      _previewController?.dispose();
-      _processor?.dispose();
-      _exportCoordinator?.dispose();
-    });
-    return const VisualizerState();
-  }
+        _positionSub?.cancel();
+        _exportProgressSub?.cancel();
+        _previewController?.dispose();
+        _processor?.dispose();
+        _exportCoordinator?.dispose();
+        // Reset interpolation state
+        _playbackStartTime = null;
+        _playbackStartPosition = null;
+        _isPlaying = false;
+      });
+      return const VisualizerState();
+    }
 
   Future<void> pickAndLoadAudio() async {
     final result = await FilePicker.platform.pickFiles(
@@ -160,56 +187,67 @@ class VisualizerNotifier extends Notifier<VisualizerState> {
     await loadAudioFile(path);
   }
 
-  Future<void> loadAudioFile(String path) async {
-    _stopPreviewTimer();
-    _positionSub?.cancel();
-    _positionSub = null;
-    _previewController?.dispose();
-    _processor?.dispose();
-    _exportCoordinator?.dispose();
-    _exportProgressSub?.cancel();
+   Future<void> loadAudioFile(String path) async {
+     _stopPreviewTimer(); // 停止现有定时器
+     _positionSub?.cancel();
+     _positionSub = null;
+     _previewController?.dispose();
+     _processor?.dispose();
+     _exportCoordinator?.dispose();
+     _exportProgressSub?.cancel();
 
-    final processor = AudioProcessor();
-    await processor.load(path);
+     // Reset interpolation state
+     _playbackStartTime = null;
+     _playbackStartPosition = null;
+     _isPlaying = false;
 
-    final settings = ref.read(visualizerSettingsProvider);
-    final previewController = PreviewController(processor, settings);
-    final exportCoordinator = ExportCoordinator(
-      processor: processor,
-      settings: settings,
-      audioFilePath: path,
-    );
+     final processor = AudioProcessor();
+     await processor.load(path);
 
-    _processor = processor;
-    _previewController = previewController;
-    _exportCoordinator = exportCoordinator;
+     final settings = ref.read(visualizerSettingsProvider);
+     final previewController = PreviewController(processor, settings);
+     final exportCoordinator = ExportCoordinator(
+       processor: processor,
+       settings: settings,
+       audioFilePath: path,
+     );
 
-    state = state.copyWith(
-      processor: processor,
-      previewController: previewController,
-      exportCoordinator: exportCoordinator,
-      filePath: path,
-      isExporting: false,
-      exportProgress: 0.0,
-      exportError: null,
-      exportOutputPath: null,
-    );
+     _processor = processor;
+     _previewController = previewController;
+     _exportCoordinator = exportCoordinator;
 
-    ref.read(audioNotifierProvider.notifier).loadFile(path);
+     state = state.copyWith(
+       processor: processor,
+       previewController: previewController,
+       exportCoordinator: exportCoordinator,
+       filePath: path,
+       isExporting: false,
+       exportProgress: 0.0,
+       exportError: null,
+       exportOutputPath: null,
+     );
 
-    final file = File(path);
-    final fileSize = await file.length();
-    ref
-        .read(musicListProvider.notifier)
-        .addItem(
-          MusicItem(
-            title: path.split('/').last,
-            id: path,
-            size: fileSize,
-            duration: '0:00',
-          ),
-        );
-  }
+     ref.read(audioNotifierProvider.notifier).loadFile(path);
+
+     // 如果正在播放，启动定时器
+     final isPlaying = ref.read(audioNotifierProvider).value?.isPlaying ?? false;
+     if (isPlaying) {
+       _startPreviewTimer();
+     }
+
+     final file = File(path);
+     final fileSize = await file.length();
+     ref
+         .read(musicListProvider.notifier)
+         .addItem(
+           MusicItem(
+             title: path.split('/').last,
+             id: path,
+             size: fileSize,
+             duration: '0:00',
+           ),
+         );
+   }
 
   Future<void> startExport() async {
     final coordinator = _exportCoordinator;
