@@ -14,7 +14,7 @@ class PhysicsEngine {
 
   Float64List step(Float32List magnitudes, double dt) {
     // 根據 dt 計算補償比率，參考 FPS 設為 settings.referenceFps 或預設 60
-    final double referenceFps = 60.0; 
+    final double referenceFps = 60.0;
     final double dtRatio = dt / (1.0 / referenceFps);
 
     // 應用精確的 Attack/Decay 插值
@@ -31,12 +31,11 @@ class PhysicsEngine {
         if (magnitudes[bin] > localMax) localMax = magnitudes[bin];
       }
 
-      // 棄用 globalMax，回歸絕對強度計算
-      // 這裡使用 0.007 作為基準縮放係數（與 TypeScript 版本一致）
-      double target = pow(localMax, settings.contrast).toDouble() * 
-          0.7 * 
+      double target =
+          pow(localMax, settings.contrast).toDouble() *
+          5 *
           settings.barHeightMultiplier;
-          
+
       target = max(0, target);
 
       // Soft Ceiling 壓縮邏輯
@@ -52,7 +51,7 @@ class PhysicsEngine {
         _heights[b] += (target - _heights[b]) * attack;
       } else {
         double nextValue = _heights[b] * decay;
-        
+
         // 保留原有的 maxDropRatio 結構
         const maxDropRatio = 1.0;
         if (_heights[b] - nextValue > _heights[b] * maxDropRatio) {
@@ -60,7 +59,7 @@ class PhysicsEngine {
         }
         _heights[b] = nextValue;
       }
-      
+
       _heights[b] = max(0.001, _heights[b]);
     }
 

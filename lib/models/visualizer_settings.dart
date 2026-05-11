@@ -40,18 +40,18 @@ class VisualizerSettings {
   final double barColorB;
 
   const VisualizerSettings({
-    this.barCount = 12,
-    this.barWidth = 2.0,
+    this.barCount = 64,
+    this.barWidth = 4.0,
     this.barHeightMultiplier = 1.0,
     this.cornerRadius = 0.0,
     this.totalWidth = 300.0,
-    this.spacing = 1.0,
+    this.spacing = 10.0,
     this.backgroundColor = const Color(0xFF000000),
     this.positiveHeightScale = 1.0,
     this.negativeHeightScale = 1.0,
     this.positiveColor = const Color.fromARGB(255, 255, 255, 255),
     this.negativeColor = const Color.fromARGB(255, 72, 72, 72),
-    this.decay = 0.6,
+    this.decay = 0.92,
     this.attack = 0.26,
     this.contrast = 1.0,
     this.yOffset = 0.0,
