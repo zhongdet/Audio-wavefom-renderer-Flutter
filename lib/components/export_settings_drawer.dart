@@ -5,22 +5,36 @@ import '../providers/export_queue_provider.dart';
 import '../providers/visualizer_provider.dart';
 import '../providers/visualizer_settings_provider.dart';
 
+Widget buildToast(
+  BuildContext context,
+  ToastOverlay overlay, {
+  required String title,
+  required String subtitle,
+}) {
+  return SurfaceCard(
+    child: Basic(
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: PrimaryButton(
+        size: ButtonSize.small,
+        onPressed: () {
+          overlay.close();
+        },
+        child: const Text('OK'),
+      ),
+      trailingAlignment: Alignment.center,
+    ),
+  );
+}
+
 void openExportSettings(BuildContext context, WidgetRef ref) {
   final visState = ref.read(visualizerProvider);
   if (visState.filePath == null) {
     showToast(
       context: context,
-      builder: (context, overlay) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF18181B),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Text(
-          'No audio loaded',
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
+      builder: (context, overlay) =>
+          buildToast(context, overlay, title: "No Audio loaded", subtitle: "INFO"),
+      location: ToastLocation.topRight,
     );
     return;
   }
@@ -54,27 +68,19 @@ class _ExportSettingsContent extends ConsumerStatefulWidget {
 
 class _ExportSettingsContentState
     extends ConsumerState<_ExportSettingsContent> {
-
   void _handleAddToQueue() {
     final visualizerSettings = ref.read(visualizerSettingsProvider);
-    ref.read(exportQueueProvider.notifier).addToQueue(
+    ref
+        .read(exportQueueProvider.notifier)
+        .addToQueue(
           widget.audioFilePath,
           widget.audioFileName,
           visualizerSettings,
         );
     showToast(
       context: widget.rootContext,
-      builder: (context, overlay) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF18181B),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Text(
-          'Added to render queue',
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
+      builder: (context, overlay) => buildToast(context, overlay, title: "Add to renderer queue", subtitle: "INFO"),
+      location: ToastLocation.topRight,
     );
     closeOverlay(context);
   }
@@ -102,9 +108,9 @@ class _ExportSettingsContentState
                     itemLabel: (r) => '${r.width}x${r.height}',
                     onChanged: (v) {
                       if (v != null) {
-                        ref.read(visualizerSettingsProvider.notifier).patch(
-                              resolution: v,
-                            );
+                        ref
+                            .read(visualizerSettingsProvider.notifier)
+                            .patch(resolution: v);
                       }
                     },
                   ),
@@ -115,9 +121,9 @@ class _ExportSettingsContentState
                     itemLabel: (f) => '${f.value} fps',
                     onChanged: (v) {
                       if (v != null) {
-                        ref.read(visualizerSettingsProvider.notifier).patch(
-                              fps: v,
-                            );
+                        ref
+                            .read(visualizerSettingsProvider.notifier)
+                            .patch(fps: v);
                       }
                     },
                   ),
@@ -128,9 +134,9 @@ class _ExportSettingsContentState
                     itemLabel: (p) => p.value,
                     onChanged: (v) {
                       if (v != null) {
-                        ref.read(visualizerSettingsProvider.notifier).patch(
-                              preset: v,
-                            );
+                        ref
+                            .read(visualizerSettingsProvider.notifier)
+                            .patch(preset: v);
                       }
                     },
                   ),
@@ -138,27 +144,27 @@ class _ExportSettingsContentState
                     label: 'Green Screen',
                     value: settings.greenScreen,
                     onChanged: (v) {
-                      ref.read(visualizerSettingsProvider.notifier).patch(
-                            greenScreen: v,
-                          );
+                      ref
+                          .read(visualizerSettingsProvider.notifier)
+                          .patch(greenScreen: v);
                     },
                   ),
                   _ToggleRow(
                     label: 'Spectrum Bars',
                     value: settings.includeSpectrumBars,
                     onChanged: (v) {
-                      ref.read(visualizerSettingsProvider.notifier).patch(
-                            includeSpectrumBars: v,
-                          );
+                      ref
+                          .read(visualizerSettingsProvider.notifier)
+                          .patch(includeSpectrumBars: v);
                     },
                   ),
                   _ToggleRow(
                     label: 'Include Audio',
                     value: settings.includeAudio,
                     onChanged: (v) {
-                      ref.read(visualizerSettingsProvider.notifier).patch(
-                            includeAudio: v,
-                          );
+                      ref
+                          .read(visualizerSettingsProvider.notifier)
+                          .patch(includeAudio: v);
                     },
                   ),
                   _SliderRow(
@@ -167,18 +173,18 @@ class _ExportSettingsContentState
                     min: 0,
                     max: 51,
                     onChanged: (v) {
-                      ref.read(visualizerSettingsProvider.notifier).patch(
-                            crf: v.toInt(),
-                          );
+                      ref
+                          .read(visualizerSettingsProvider.notifier)
+                          .patch(crf: v.toInt());
                     },
                   ),
                 ],
               ),
             ),
             const Gap(16),
-              PrimaryButton(
-                onPressed: _handleAddToQueue,
-                child: const Text('Add to Render Queue'),
+            PrimaryButton(
+              onPressed: _handleAddToQueue,
+              child: const Text('Add to Render Queue'),
             ),
             const Gap(16),
           ],
