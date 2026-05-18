@@ -32,8 +32,12 @@ void openExportSettings(BuildContext context, WidgetRef ref) {
   if (visState.filePath == null) {
     showToast(
       context: context,
-      builder: (context, overlay) =>
-          buildToast(context, overlay, title: "No Audio loaded", subtitle: "INFO"),
+      builder: (context, overlay) => buildToast(
+        context,
+        overlay,
+        title: "No Audio loaded",
+        subtitle: "INFO",
+      ),
       location: ToastLocation.topRight,
     );
     return;
@@ -79,7 +83,12 @@ class _ExportSettingsContentState
         );
     showToast(
       context: widget.rootContext,
-      builder: (context, overlay) => buildToast(context, overlay, title: "Add to renderer queue", subtitle: "INFO"),
+      builder: (context, overlay) => buildToast(
+        context,
+        overlay,
+        title: "Add to renderer queue",
+        subtitle: "INFO",
+      ),
       location: ToastLocation.topRight,
     );
     closeOverlay(context);
@@ -184,7 +193,7 @@ class _ExportSettingsContentState
             const Gap(16),
             PrimaryButton(
               onPressed: _handleAddToQueue,
-              child: const Text('Add to Render Queue'),
+              child: const Text('Add to Render Tasks'),
             ),
             const Gap(16),
           ],

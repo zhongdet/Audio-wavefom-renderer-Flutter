@@ -2,8 +2,8 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 class MoreOptionsBtn extends StatefulWidget {
   final VoidCallback openMusicList;
-  final VoidCallback openRenderQueue;
-  final VoidCallback addToRenderQueue;
+  final VoidCallback openRenderTasks;
+  final VoidCallback addToRenderTasks;
   final VoidCallback uploadAudio;
   final VoidCallback openWaveformSettings;
   final VoidCallback openInfo;
@@ -11,8 +11,8 @@ class MoreOptionsBtn extends StatefulWidget {
   const MoreOptionsBtn({
     super.key,
     this.openMusicList = _openMusicList,
-    this.openRenderQueue = _openRenderQueue,
-    this.addToRenderQueue = _addToRenderQueue,
+    this.openRenderTasks = _openRenderTasks,
+    this.addToRenderTasks = _addToRenderTasks,
     this.uploadAudio = _uploadAudio,
     this.openWaveformSettings = _openWaveformSettings,
     this.openInfo = _openInfo,
@@ -22,12 +22,12 @@ class MoreOptionsBtn extends StatefulWidget {
     print("open music list");
   }
 
-  static void _openRenderQueue() {
-    print("open render queue");
+  static void _openRenderTasks() {
+    print("open Render Tasks");
   }
 
-  static void _addToRenderQueue() {
-    print("add to render queue");
+  static void _addToRenderTasks() {
+    print("add to Render Tasks");
   }
 
   static void _uploadAudio() {
@@ -86,23 +86,23 @@ class _MoreOptionsBtnState extends State<MoreOptionsBtn> {
             ),
             MenuButton(
               leading: Icon(Icons.queue),
-              child: Text('Render Queue'),
+              child: Text('Render Tasks'),
               onPressed: (context) {
-                widget.openRenderQueue();
+                widget.openRenderTasks();
               },
             ),
             MenuButton(
               leading: Icon(Icons.playlist_add),
-              child: Text('Add to Render Queue'),
+              child: Text('Add to Render Tasks'),
               onPressed: (context) {
-                widget.addToRenderQueue();
+                widget.addToRenderTasks();
               },
             ),
             MenuButton(
               leading: Icon(Icons.playlist_add),
-              child: Text('Add to Render Queue'),
+              child: Text('Add to Render Tasks'),
               onPressed: (context) {
-                widget.addToRenderQueue();
+                widget.addToRenderTasks();
               },
             ),
             MenuButton(

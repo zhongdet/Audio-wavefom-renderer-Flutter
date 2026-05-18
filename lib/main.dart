@@ -3,7 +3,7 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'components/components.dart';
 import 'components/visualizer.dart';
 import 'components/export_settings_drawer.dart';
-import 'components/render_queue_drawer.dart';
+import 'components/render_tasks_drawer.dart';
 import 'providers/providers.dart';
 
 void main() {
@@ -97,8 +97,8 @@ class PlaybackControls extends ConsumerWidget {
                 MoreOptionsBtn(
                   uploadAudio: () =>
                       ref.read(visualizerProvider.notifier).pickAndLoadAudio(),
-                  openRenderQueue: () => openRenderQueueDrawer(context, ref),
-                  addToRenderQueue: () => openExportSettings(context, ref),
+                  openRenderTasks: () => openRenderTasksDrawer(context, ref),
+                  addToRenderTasks: () => openExportSettings(context, ref),
                   openMusicList: () => openMusicList(context, ref),
                   openWaveformSettings: () => openSettingsControl(context, ref),
                 ),

@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import '../providers/export_queue_provider.dart';
 
-void openRenderQueueDrawer(BuildContext context, WidgetRef ref) {
+void openRenderTasksDrawer(BuildContext context, WidgetRef ref) {
   openDrawer(
     context: context,
     position: OverlayPosition.bottom,
@@ -15,7 +15,7 @@ void openRenderQueueDrawer(BuildContext context, WidgetRef ref) {
             children: [
               Row(
                 children: [
-                  const Text('Render Queue'),
+                  const Text('Render Tasks'),
                   const Spacer(),
                   OutlineButton(
                     child: const Text('Clear Done'),
