@@ -99,13 +99,6 @@ class _MoreOptionsBtnState extends State<MoreOptionsBtn> {
               },
             ),
             MenuButton(
-              leading: Icon(Icons.playlist_add),
-              child: Text('Add to Render Tasks'),
-              onPressed: (context) {
-                widget.addToRenderTasks();
-              },
-            ),
-            MenuButton(
               leading: Icon(Icons.settings),
               child: Text('Waveform Settings'),
               onPressed: (context) {
