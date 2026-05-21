@@ -17,8 +17,8 @@ abstract class SpectrumPainter {
     final barWidth = settings.barWidth;
     final radius = Radius.circular(cornerRadius ?? settings.cornerRadius);
 
-    final totalWidth = settings.totalWidth;
-    final offsetX = (size.width - totalWidth) / 2;
+    final actualWidth = barCount * (barWidth + gap) - gap;
+    final offsetX = (size.width - actualWidth) / 2;
     final centerY = size.height / 2;
 
     final paint = Paint()
@@ -27,7 +27,7 @@ abstract class SpectrumPainter {
 
     for (int i = 0; i < barCount; i++) {
       final h = heights[i].clamp(0.0, 1.0) * size.height * settings.positiveHeightScale;
-      final x = i * gap + offsetX;
+      final x = i * (barWidth + gap) + offsetX;
       final top = centerY - h / 2;
 
       final rect = RRect.fromRectAndCorners(
