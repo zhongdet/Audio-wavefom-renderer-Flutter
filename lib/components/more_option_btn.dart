@@ -19,27 +19,27 @@ class MoreOptionsBtn extends StatefulWidget {
   });
 
   static void _openMusicList() {
-    print("open music list");
+    debugPrint("open music list");
   }
 
   static void _openRenderTasks() {
-    print("open Render Tasks");
+    debugPrint("open Render Tasks");
   }
 
   static void _addToRenderTasks() {
-    print("add to Render Tasks");
+    debugPrint("add to Render Tasks");
   }
 
   static void _uploadAudio() {
-    print("upload video");
+    debugPrint("upload video");
   }
 
   static void _openWaveformSettings() {
-    print("open wave form settings");
+    debugPrint("open wave form settings");
   }
 
   static void _openInfo() {
-    print("open info");
+    debugPrint("open info");
   }
 
   @override

@@ -97,33 +97,211 @@ flutter build apk --release
 
 ## How It Works
 
-### Audio Processing Pipeline
+### Data Flow Overview
 
-1. **Decode** — Input audio (mp3, m4a, flac, ogg, wav) is decoded to a temporary WAV file using `audio_decoder`.
-2. **WAV parsing** — The app reads the WAV header (sample rate, bit depth, channels, PCM offset) via `RandomAccessFile` without loading the full file into memory.
-3. **Frame extraction** — For each playback position, a 4096-sample PCM chunk is read, converted to normalized float64, and passed through an FFT. Magnitudes are computed from complex frequency bins.
-4. **Band mapping** — 4096 FFT bins are divided into N logarithmic frequency bands (configurable count, min/max frequency). Each band's local maximum magnitude drives its bar height.
+```
+Audio File (mp3/m4a/flac/ogg/wav)
+  -> Decoded to temporary WAV (audio_decoder)
+  -> WAV header parsed (sampleRate, bitDepth, channels, PCM offset)
+  -> PCM data read on demand (RandomAccessFile, no full-file load)
+  -> FFT applied (4096-point, Hanning window)
+  -> Magnitude spectrum (2048 bins, 20Hz - 16kHz)
+  -> Logarithmic band grouping (configurable bar count)
+  -> Physics engine step (attack/decay smoothing)
+  -> Bar heights (Float64List)
+  -> Rendered to screen (preview) OR written to video (export)
+```
 
-### Physics Engine
+### Audio Loading Pipeline
 
-Each frame, the physics engine applies:
+```
+User picks file
+  -> FilePicker (mp3, m4a, flac, ogg, wav)
+  -> VisualizerNotifier.loadAudioFile(path)
+    -> AudioProcessor.load(path)
+      -> AudioDecoder.convertToWav(inputPath, tempWavPath)
+      -> RandomAccessFile.openSync(tempWavPath)
+      -> Parse WAV header (RIFF/WAVE chunks, fmt/data blocks)
+      -> Extract: sampleRate, bitsPerSample, numChannels, totalSamples, pcmOffset
+      -> Compute totalFrameCount = totalSamples / (kFftSize * kHopRatio)
+    -> AudioPlayer.setFilePath(path) (just_audio, for playback)
+    -> Create PreviewController + ExportCoordinator (both hold AudioProcessor)
+    -> Add MusicItem to list
+```
 
-1. **Target computation** — `magnitude ^ contrast * barHeightMultiplier`, capped by soft ceiling: `threshold + (1 - exp(-excess * strength)) / strength`.
-2. **Attack** — When target > current: `current += (target - current) * (1 - pow(1 - attack, dtRatio))`.
-3. **Decay** — When target <= current: `current *= pow(decay, dtRatio)`.
-4. **Minimum clamp** — Heights never drop below 0.001.
+### Frame Computation (Preview & Export Shared)
 
-`dtRatio` normalizes timing to a 60 FPS reference, ensuring consistent behavior at different frame rates.
+```
+Given: audio position (Duration) or frame index
+  -> Calculate frameIndex = (position / totalDuration) * totalFrameCount
+  -> Compute sampleStart = frameIndex * hopSize  (hopSize = 2048 samples)
+  -> Read PCM chunk from WAV file at sampleStart
+    -> Parse bytes to normalized float64 (handles 8/16/32-bit, multi-channel mix)
+  -> Run FFT (fftea, 4096-point, Hanning window)
+    -> For each of 2048 frequency bins: magnitude = sqrt(real² + imag²) / (fftSize/2)
+  -> Return VisualizerFrame { magnitudes: Float32List[2048] }
+```
+
+### Preview (Real-time) Pipeline
+
+```
+User presses Play
+  -> AudioPlayer starts playback (just_audio)
+  -> VisualizerNotifier listens to play/pause state
+    -> On play: record wall-clock time + current position
+    -> Start Timer.periodic(intervalMs)
+       intervalMs = 1000 / (sampleRate / (kFftSize * kHopRatio))  ≈ 42ms (~23.4Hz)
+  -> Each timer tick:
+    -> Compute interpolated position = playbackStartPosition + (now - playbackStartTime)
+    -> PreviewController.tick(interpolatedPosition)
+      -> AudioProcessor.getFrameAt(position)
+        -> Frame index calculation + PCM read + FFT
+        -> Return VisualizerFrame
+      -> VisualizerRenderer.computeHeights(magnitudes, dt)
+        -> PhysicsEngine.step(magnitudes, dt)
+          -> For each band (logarithmic frequency group):
+            -> localMax = max(magnitudes[bandStart..bandEnd])
+            -> target = pow(localMax, contrast) * barHeightMultiplier
+            -> Soft ceiling compression (threshold + exponential falloff)
+            -> Attack (rise) or Decay (fall) based on dtRatio
+          -> Return Float64List heights
+      -> notifyListeners()
+    -> Flutter rebuilds
+    -> CustomPaint -> SpectrumBarsPainter -> Canvas.drawRRect()
+    -> Display 16:9 bar visualization (scaled to screen)
+  -> On pause / settings change:
+    -> Stop timer, reset physics engine
+```
 
 ### Export Pipeline
 
-1. **Pre-compute** all frames (iterates through entire audio duration).
-2. **Render** each frame offscreen (PictureRecorder -> RGBA buffer) by drawing spectrum bars on a colored background.
-3. **Encode** — Either hardware encoder (direct MP4 output) or FFmpeg (raw RGBA -> libx264).
-4. **Mux audio** (if enabled) — FFmpeg remuxes the original audio track into the video.
-5. **Clean up** — Temporary files (decoded WAV, raw frames) are deleted.
+```
+User clicks "Add to Render Tasks" (or "Export")
+  -> ExportCoordinator created with: AudioProcessor + VisualizerSettings + audioFilePath
+    -> Method defaults to: Hardware + Mux Audio
 
-## Configuration Defaults
+startExport()
+  |
+  +-> Step 1: Pre-compute all frames
+  |     AudioProcessor.getAllFrames()
+  |       -> For frameIndex 0..totalFrameCount-1:
+  |          -> Read PCM + FFT -> VisualizerFrame (same as preview)
+  |          -> Yield every 10 frames (await Future.delayed(Duration.zero))
+  |       -> Return List<VisualizerFrame>
+  |
+  +-> Step 2: Choose encode path based on settings
+  |
+  +--- [includeAudio == true]  (default — most common)
+  |     |
+  |     +-> _exportWithHardware(frames, fpsOverride=correctFps)
+  |     |     |
+  |     |     +-> OffscreenRenderer.renderFrame(heights, settings) for each frame
+  |     |     |   -> PictureRecorder + Canvas + SpectrumPainter
+  |     |     |   -> toImage() -> toByteData(RGBA) -> Uint8List
+  |     |     |
+  |     |     +-> HardwareExporter.appendVideoFrame(rgbaPixels)
+  |     |     |   -> flutter_quick_video_encoder (native GPU encoding)
+  |     |     |
+  |     |     +-> HardwareExporter.finish() -> Returns silentVideoPath (.mp4)
+  |     |
+  |     +-> FFmpegExporter.muxAudio(silentVideoPath, audioPath, outputPath)
+  |     |   -> ffmpeg -i video.mp4 -i audio.mp3
+  |     |            -c:v copy -c:a aac -b:a 192k
+  |     |            -map 0:v -map 1:a -shortest
+  |     |            output_with_audio.mp4
+  |     |
+  |     +-> Delete silentVideoPath (cleanup)
+  |     +-> Return outputPath
+  |
+  +--- [includeAudio == false && method == Hardware]
+  |     |
+  |     +-> _exportWithHardware(frames)
+  |         -> Same as above, no mux step
+  |         -> Returns MP4 directly
+  |
+  +--- [method == FFmpeg]
+  |     |
+  |     +-> FFmpegExporter.setupRawFile()
+  |     |   -> Create temp directory -> output.rgba + output.mp4
+  |     |
+  |     +-> For each frame:
+  |     |   -> OffscreenRenderer.renderFrame(heights, settings) -> Uint8List RGBA
+  |     |   -> FFmpegExporter.writeFrame(pixels) -> append to .rgba file
+  |     |
+  |     +-> FFmpegExporter.executeCommand(width, height, fps, preset, crf)
+  |     |   -> ffmpeg -f rawvideo -pixel_format rgba -video_size 1280x720
+  |     |            -framerate 30 -i frames.rgba
+  |     |            -c:v libx264 -pix_fmt yuv420p
+  |     |            -preset ultrafast -crf 23 output.mp4
+  |     |
+  |     +-> FFmpegExporter.cleanup() -> Delete .rgba file
+  |     +-> Return outputPath
+  |
+  +-> Progress stream: 0.0 -> 1.0 (per-frame)
+  +-> Return final outputPath
+```
+
+### Export Queue Pipeline
+
+```
+User adds multiple export tasks
+  -> ExportQueueNotifier.addToQueue(audioPath, fileName, settings)
+    -> Create ExportQueueItem (status: queued)
+    -> Append to items list
+    -> _processNext()
+       |
+       +-> Find first item with status == queued
+       +-> _renderItem(itemIndex)
+       |   -> Create new AudioProcessor() -> load(audioPath)
+       |   -> Create ExportCoordinator(processor, settings, audioPath)
+       |   -> Set status = rendering
+       |   -> Subscribe to coordinator.progress stream
+       |   -> coordinator.startExport() -> await
+       |   -> On success: status = completed, outputPath set
+       |   -> On failure: status = failed, errorMessage set
+       |   -> Cleanup: dispose processor + coordinator
+       |
+       +-> Loop back to _processNext() (handles next queued item)
+  -> All items processed sequentially (one at a time)
+  -> UI shows progress per item via exportQueueProvider
+```
+
+### Core Rendering Engine
+
+```
+Input: Float32List magnitudes[2048] + double dt
+  -> Frequency bands generated (once, on construction)
+     -> Logarithmic spacing: f0 = 20Hz, f1 = 16kHz
+     -> For N bars: band[i] = [logScale(minFreq, maxFreq, i), logScale(minFreq, maxFreq, i+1)]
+     -> Map to FFT bins: bin = floor(freq * fftSize / sampleRate)
+  -> For each bar b (0..barCount-1):
+     -> (bandStart, bandEnd) = bands[b]
+     -> localMax = max(magnitudes[bandStart..bandEnd])
+     -> target = pow(localMax, contrast) * barHeightMultiplier
+     -> Soft ceiling: if target > threshold:
+                    target = threshold + (1 - exp(-(target - threshold) * strength)) / strength
+     -> If target > current[b]: current[b] += (target - current[b]) * (1 - pow(1 - attack, dtRatio))
+     -> If target <= current[b]: current[b] *= pow(decay, dtRatio)
+     -> current[b] = max(0.001, current[b])
+  -> Return Float64List heights
+```
+
+### UI Painting (Preview & Export Shared)
+
+```
+Input: Float64List heights[barCount] + Size + VisualizerSettings
+  -> Compute bar dimensions (scaled by resolution ratio)
+  -> centerX = (canvasWidth - totalBarWidth) / 2
+  -> centerY = canvasHeight / 2
+  -> For each bar i:
+     -> h = heights[i] * canvasHeight * positiveHeightScale
+     -> x = i * (barWidth + spacing) + centerX
+     -> y = centerY - h / 2  (bars grow up and down from center)
+     -> Draw RRect with top corner radius
+  -> Paint uses positiveColor (default: white)
+```
+
+### Configuration Defaults
 
 | Setting | Default |
 |---|---|
@@ -157,4 +335,4 @@ Each frame, the physics engine applies:
 ## TODOs
 
 - Test in a extreme environment, such as 10 minutes audio
-- Isolate process applying on: export tasks, audio decode 
+- Isolate process applying on: export tasks, audio decode

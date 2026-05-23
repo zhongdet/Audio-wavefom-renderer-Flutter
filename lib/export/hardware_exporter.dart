@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter_quick_video_encoder/flutter_quick_video_encoder.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart';
 
 class HardwareExporter {
   String? _outputPath;
@@ -10,6 +11,7 @@ class HardwareExporter {
     required int height,
     required int fps,
   }) async {
+    debugPrint("use hardware exporting");
     final dir = await getTemporaryDirectory();
     _outputPath =
         '${dir.path}/export_${DateTime.now().millisecondsSinceEpoch}.mp4';

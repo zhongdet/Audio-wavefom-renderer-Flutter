@@ -8,6 +8,7 @@ import '../core/visualizer_frame.dart';
 import 'offscreen_renderer.dart';
 import 'ffmpeg_exporter.dart';
 import 'hardware_exporter.dart';
+import 'package:flutter/foundation.dart';
 
 enum ExportMethod { ffmpeg, hardware }
 
@@ -18,15 +19,15 @@ class ExportCoordinator {
     required String audioFilePath,
     this.method = ExportMethod.hardware,
   }) : _processor = processor,
-        _settings = settings,
-        _audioFilePath = audioFilePath,
-        _renderer = VisualizerRenderer(
-          coreSettings: settings.toCoreSettings(),
-          barCount: settings.barCount,
-          sampleRate: processor.sampleRate,
-          minFreq: settings.minFreq.toDouble(),
-          maxFreq: settings.maxFreq.toDouble(),
-        );
+       _settings = settings,
+       _audioFilePath = audioFilePath,
+       _renderer = VisualizerRenderer(
+         coreSettings: settings.toCoreSettings(),
+         barCount: settings.barCount,
+         sampleRate: processor.sampleRate,
+         minFreq: settings.minFreq.toDouble(),
+         maxFreq: settings.maxFreq.toDouble(),
+       );
 
   final AudioProcessor _processor;
   final VisualizerSettings _settings;
@@ -61,7 +62,10 @@ class ExportCoordinator {
     }
   }
 
-  Future<String> _exportWithHardware(List<VisualizerFrame> frames, {int? fpsOverride}) async {
+  Future<String> _exportWithHardware(
+    List<VisualizerFrame> frames, {
+    int? fpsOverride,
+  }) async {
     final exporter = HardwareExporter();
     final renderer = OffscreenRenderer(
       width: _settings.resolution.width,
@@ -83,10 +87,7 @@ class ExportCoordinator {
         if (_cancelled) break;
 
         final heights = _renderer.computeHeights(frame.magnitudes, dt);
-        final pixels = await renderer.renderFrame(
-          heights,
-          _settings,
-        );
+        final pixels = await renderer.renderFrame(heights, _settings);
         await exporter.appendVideoFrame(pixels);
         _progressController.add(frameIndex / totalFrames);
         frameIndex++;
@@ -118,10 +119,7 @@ class ExportCoordinator {
         if (_cancelled) break;
 
         final heights = _renderer.computeHeights(frame.magnitudes, dt);
-        final pixels = await renderer.renderFrame(
-          heights,
-          _settings,
-        );
+        final pixels = await renderer.renderFrame(heights, _settings);
         exporter.writeFrame(pixels);
         _progressController.add(frameIndex / totalFrames);
         frameIndex++;
@@ -143,10 +141,15 @@ class ExportCoordinator {
     }
   }
 
-  Future<String> _exportWithHardwareAndMuxAudio(List<VisualizerFrame> frames) async {
+  Future<String> _exportWithHardwareAndMuxAudio(
+    List<VisualizerFrame> frames,
+  ) async {
     // 使用正确的 FPS 生成无声视频，匹配音频时长
     final correctFps = _stftFps.round();
-    final silentVideoPath = await _exportWithHardware(frames, fpsOverride: correctFps);
+    final silentVideoPath = await _exportWithHardware(
+      frames,
+      fpsOverride: correctFps,
+    );
 
     // 用 FFmpeg 混入音频
     final exporter = FFmpegExporter();
@@ -166,7 +169,7 @@ class ExportCoordinator {
       return resultPath;
     } catch (e) {
       // 混流失败，返回无声视频
-      print('Audio mux failed: $e');
+      debugPrint('Audio mux failed: $e');
       _progressController.add(1.0);
       return silentVideoPath;
     }

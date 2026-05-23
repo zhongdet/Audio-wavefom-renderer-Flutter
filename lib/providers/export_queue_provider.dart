@@ -18,6 +18,8 @@ class ExportQueueItem {
   String? errorMessage;
   String? elapsedTime;
   DateTime? _startTime;
+  Timer? _timer;
+  StreamSubscription<double>? _progressSub;
   AudioProcessor? _processor;
   ExportCoordinator? _coordinator;
 
@@ -65,6 +67,13 @@ class ExportQueueItem {
     final minutes = elapsed.inMinutes.remainder(60).toString().padLeft(2, '0');
     final seconds = elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+
+  void _cancelTimers() {
+    _timer?.cancel();
+    _timer = null;
+    _progressSub?.cancel();
+    _progressSub = null;
   }
 }
 
@@ -117,6 +126,7 @@ class ExportQueueNotifier extends Notifier<ExportQueueState> {
 
   void removeFromQueue(String id) {
     final item = state.items.firstWhere((i) => i.id == id);
+    item._cancelTimers();
     if (item.status == ExportStatus.rendering) {
       item._coordinator?.cancel();
     }
@@ -132,6 +142,7 @@ class ExportQueueNotifier extends Notifier<ExportQueueState> {
     final index = state.items.indexWhere((i) => i.id == id);
     if (index < 0) return;
     final item = state.items[index];
+    item._cancelTimers();
     if (item.status == ExportStatus.rendering) {
       item._coordinator?.cancel();
     }
@@ -169,7 +180,6 @@ class ExportQueueNotifier extends Notifier<ExportQueueState> {
 
   Future<void> _renderItem(int index) async {
     final item = state.items[index];
-    Timer? timer;
 
     try {
       final processor = AudioProcessor();
@@ -192,29 +202,33 @@ class ExportQueueNotifier extends Notifier<ExportQueueState> {
 
       item._startTimer();
 
-      timer = Timer.periodic(const Duration(seconds: 1), (_) {
-        final current = state.items.firstWhere((i) => i.id == item.id, orElse: () => item);
+      item._timer = Timer.periodic(const Duration(seconds: 1), (_) {
         final idx = state.items.indexWhere((i) => i.id == item.id);
-        if (idx >= 0 && current.status == ExportStatus.rendering) {
+        if (idx < 0) {
+          item._timer?.cancel();
+          return;
+        }
+        final current = state.items[idx];
+        if (current.status == ExportStatus.rendering) {
           final u = List<ExportQueueItem>.from(state.items);
           u[idx] = current.copyWith(elapsedTime: item._getElapsedTime());
           state = state.copyWith(items: u);
         } else {
-          timer?.cancel();
+          item._timer?.cancel();
         }
       });
 
-      final sub = coordinator.progress.listen((progress) {
-        final current = state.items.firstWhere((i) => i.id == item.id);
-        final idx = state.items.indexOf(current);
+      item._progressSub = coordinator.progress.listen((progress) {
+        final idx = state.items.indexWhere((i) => i.id == item.id);
+        if (idx < 0) return;
+        final current = state.items[idx];
         final u = List<ExportQueueItem>.from(state.items);
         u[idx] = current.copyWith(progress: progress);
         state = state.copyWith(items: u);
       });
 
       final outputPath = await coordinator.startExport();
-      timer.cancel();
-      await sub.cancel();
+      item._cancelTimers();
 
       final finalElapsedTime = item._getElapsedTime();
       final finalIdx = state.items.indexWhere((i) => i.id == item.id);
@@ -229,7 +243,7 @@ class ExportQueueNotifier extends Notifier<ExportQueueState> {
         state = state.copyWith(items: u);
       }
     } catch (e) {
-      timer?.cancel();
+      item._cancelTimers();
       final finalElapsedTime = item._getElapsedTime();
       final errIdx = state.items.indexWhere((i) => i.id == item.id);
       if (errIdx >= 0) {
@@ -242,6 +256,7 @@ class ExportQueueNotifier extends Notifier<ExportQueueState> {
         state = state.copyWith(items: u);
       }
     } finally {
+      item._cancelTimers();
       item._processor?.dispose();
       item._coordinator?.dispose();
       item._processor = null;
