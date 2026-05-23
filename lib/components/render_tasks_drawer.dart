@@ -102,23 +102,66 @@ class _QueueItemTile extends StatelessWidget {
             if (item.status == ExportStatus.rendering) ...[
               LinearProgressIndicator(value: item.progress),
               const Gap(2),
-              Text(
-                '${(item.progress * 100).toInt()}%',
-                style: const TextStyle(fontSize: 11),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${(item.progress * 100).toInt()}%',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  Text(
+                    item.elapsedTime ?? '00:00',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF888888),
+                    ),
+                  ),
+                ],
               ),
             ] else if (item.status == ExportStatus.completed) ...[
-              Text(
-                'Saved: ${item.outputPath ?? "unknown"}',
-                style: const TextStyle(fontSize: 10, color: Colors.green),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Saved: ${item.outputPath ?? "unknown"}',
+                      style: const TextStyle(fontSize: 10, color: Colors.green),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const Gap(8),
+                  Text(
+                    item.elapsedTime ?? '--:--',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF888888),
+                    ),
+                  ),
+                ],
               ),
             ] else if (item.status == ExportStatus.failed) ...[
-              Text(
-                'Error: ${item.errorMessage ?? "unknown"}',
-                style: const TextStyle(fontSize: 10, color: Colors.red),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Error: ${item.errorMessage ?? "unknown"}',
+                      style: const TextStyle(fontSize: 10, color: Colors.red),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const Gap(8),
+                  Text(
+                    item.elapsedTime ?? '00:00',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF888888),
+                    ),
+                  ),
+                ],
               ),
             ],
           ],

@@ -16,6 +16,8 @@ class ExportQueueItem {
   double progress;
   String? outputPath;
   String? errorMessage;
+  String? elapsedTime;
+  DateTime? _startTime;
   AudioProcessor? _processor;
   ExportCoordinator? _coordinator;
 
@@ -29,6 +31,7 @@ class ExportQueueItem {
     this.progress = 0.0,
     this.outputPath,
     this.errorMessage,
+    this.elapsedTime,
   }) : createdAt = createdAt ?? DateTime.now();
 
   ExportQueueItem copyWith({
@@ -36,6 +39,7 @@ class ExportQueueItem {
     double? progress,
     String? outputPath,
     String? errorMessage,
+    String? elapsedTime,
   }) {
     return ExportQueueItem(
       id: id,
@@ -47,7 +51,20 @@ class ExportQueueItem {
       progress: progress ?? this.progress,
       outputPath: outputPath ?? this.outputPath,
       errorMessage: errorMessage ?? this.errorMessage,
+      elapsedTime: elapsedTime ?? this.elapsedTime,
     );
+  }
+
+  void _startTimer() {
+    _startTime = DateTime.now();
+  }
+
+  String? _getElapsedTime() {
+    if (_startTime == null) return null;
+    final elapsed = DateTime.now().difference(_startTime!);
+    final minutes = elapsed.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 }
 
@@ -152,6 +169,7 @@ class ExportQueueNotifier extends Notifier<ExportQueueState> {
 
   Future<void> _renderItem(int index) async {
     final item = state.items[index];
+    Timer? timer;
 
     try {
       final processor = AudioProcessor();
@@ -172,6 +190,20 @@ class ExportQueueNotifier extends Notifier<ExportQueueState> {
       );
       state = state.copyWith(items: updated, isProcessing: true);
 
+      item._startTimer();
+
+      timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        final current = state.items.firstWhere((i) => i.id == item.id, orElse: () => item);
+        final idx = state.items.indexWhere((i) => i.id == item.id);
+        if (idx >= 0 && current.status == ExportStatus.rendering) {
+          final u = List<ExportQueueItem>.from(state.items);
+          u[idx] = current.copyWith(elapsedTime: item._getElapsedTime());
+          state = state.copyWith(items: u);
+        } else {
+          timer?.cancel();
+        }
+      });
+
       final sub = coordinator.progress.listen((progress) {
         final current = state.items.firstWhere((i) => i.id == item.id);
         final idx = state.items.indexOf(current);
@@ -181,8 +213,10 @@ class ExportQueueNotifier extends Notifier<ExportQueueState> {
       });
 
       final outputPath = await coordinator.startExport();
+      timer.cancel();
       await sub.cancel();
 
+      final finalElapsedTime = item._getElapsedTime();
       final finalIdx = state.items.indexWhere((i) => i.id == item.id);
       if (finalIdx >= 0) {
         final u = List<ExportQueueItem>.from(state.items);
@@ -190,16 +224,20 @@ class ExportQueueNotifier extends Notifier<ExportQueueState> {
           status: ExportStatus.completed,
           progress: 1.0,
           outputPath: outputPath,
+          elapsedTime: finalElapsedTime,
         );
         state = state.copyWith(items: u);
       }
     } catch (e) {
+      timer?.cancel();
+      final finalElapsedTime = item._getElapsedTime();
       final errIdx = state.items.indexWhere((i) => i.id == item.id);
       if (errIdx >= 0) {
         final u = List<ExportQueueItem>.from(state.items);
         u[errIdx] = item.copyWith(
           status: ExportStatus.failed,
           errorMessage: e.toString(),
+          elapsedTime: finalElapsedTime,
         );
         state = state.copyWith(items: u);
       }
