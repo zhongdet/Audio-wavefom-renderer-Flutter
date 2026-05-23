@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import '../utils/isolate_runner.dart';
 import '../models/music_items.dart';
 
 final audioNotifierProvider = AsyncNotifierProvider<AudioNotifier, AudioState>(
@@ -81,12 +82,15 @@ class AudioNotifier extends AsyncNotifier<AudioState> {
     );
 
     try {
-      await _player.stop();
-      if (item.id.startsWith('assets/')) {
-        await _player.setAsset(item.id, preload: false);
-      } else {
-        await _player.setFilePath(item.id, preload: false);
-      }
+      final runner = IsolateRunner();
+      await runner.run(() async {
+        await _player.stop();
+        if (item.id.startsWith('assets/')) {
+          await _player.setAsset(item.id, preload: false);
+        } else {
+          await _player.setFilePath(item.id, preload: false);
+        }
+      });
     } catch (e) {
       debugPrint('Audio Load Error: $e');
     } finally {
