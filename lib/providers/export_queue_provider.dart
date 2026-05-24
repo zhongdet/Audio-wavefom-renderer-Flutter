@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import '../audio/audio_processor.dart';
 import '../export/export_coordinator.dart';
 import '../models/visualizer_settings.dart';
@@ -248,6 +249,7 @@ class ExportQueueNotifier extends Notifier<ExportQueueState> {
       final errIdx = state.items.indexWhere((i) => i.id == item.id);
       if (errIdx >= 0) {
         final u = List<ExportQueueItem>.from(state.items);
+        debugPrint(e.toString());
         u[errIdx] = item.copyWith(
           status: ExportStatus.failed,
           errorMessage: e.toString(),

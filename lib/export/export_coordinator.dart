@@ -5,19 +5,20 @@ import '../audio/audio_processor.dart';
 import '../models/visualizer_settings.dart';
 import '../core/constants.dart';
 import '../core/visualizer_frame.dart';
+import 'native_gpu_renderer.dart';
 import 'offscreen_renderer.dart';
 import 'ffmpeg_exporter.dart';
-import 'hardware_exporter.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 
-enum ExportMethod { ffmpeg, hardware }
+enum ExportMethod { nativeGpu, ffmpeg }
 
 class ExportCoordinator {
   ExportCoordinator({
     required AudioProcessor processor,
     required VisualizerSettings settings,
     required String audioFilePath,
-    this.method = ExportMethod.hardware,
+    this.method = ExportMethod.nativeGpu,
   }) : _processor = processor,
        _settings = settings,
        _audioFilePath = audioFilePath,
@@ -46,62 +47,91 @@ class ExportCoordinator {
   Future<String> startExport() async {
     _cancelled = false;
 
-    // 导出前，确保所有帧都已计算完成
     final frames = await _processor.getAllFrames();
 
-    // 含音频时，统一使用硬件编码生成无声视频 + FFmpeg 混流
-    // 避免 FFmpeg 导出产生的 RGBA 临时文件占满存储
     if (_settings.includeAudio) {
-      return await _exportWithHardwareAndMuxAudio(frames);
+      return await _exportWithNativeGpuAndMuxAudio(frames);
     }
 
-    if (method == ExportMethod.hardware) {
-      return await _exportWithHardware(frames);
+    if (method == ExportMethod.nativeGpu) {
+      return await _exportWithNativeGpu(frames);
     } else {
-      return await _exportWithFFmpeg(frames);
+      return await _exportWithOffscreenRenderer(frames);
     }
   }
 
-  Future<String> _exportWithHardware(
-    List<VisualizerFrame> frames, {
-    int? fpsOverride,
-  }) async {
-    final exporter = HardwareExporter();
-    final renderer = OffscreenRenderer(
-      width: _settings.resolution.width,
-      height: _settings.resolution.height,
-    );
-    final fps = fpsOverride ?? _stftFps.round();
-    await exporter.setup(
-      width: _settings.resolution.width,
-      height: _settings.resolution.height,
-      fps: fps,
-    );
-
-    int frameIndex = 0;
-    final totalFrames = frames.length;
+  Future<String> _exportWithNativeGpu(List<VisualizerFrame> frames) async {
+    final gpuRenderer = NativeGpuRenderer();
+    final fps = _stftFps.round();
     final dt = 1.0 / _stftFps;
+    final barCount = _settings.barCount;
+    final totalFrames = frames.length;
+
+    final flatHeights = Float64List(totalFrames * barCount);
+    for (int i = 0; i < totalFrames; i++) {
+      final heights = _renderer.computeHeights(frames[i].magnitudes, dt);
+      for (int j = 0; j < barCount; j++) {
+        flatHeights[i * barCount + j] = heights[j];
+      }
+    }
+
+    final dir = await getTemporaryDirectory();
+    final outputPath = '${dir.path}/export_${DateTime.now().millisecondsSinceEpoch}.mp4';
+
+    final progressSub = gpuRenderer.progress.listen((p) {
+      _progressController.add(p);
+    });
 
     try {
-      for (final frame in frames) {
-        if (_cancelled) break;
-
-        final heights = _renderer.computeHeights(frame.magnitudes, dt);
-        final pixels = await renderer.renderFrame(heights, _settings);
-        await exporter.appendVideoFrame(pixels);
-        _progressController.add(frameIndex / totalFrames);
-        frameIndex++;
-      }
-
-      final outputPath = await exporter.finish();
+      final resultPath = await gpuRenderer.startExport(
+        outputPath: outputPath,
+        width: _settings.resolution.width,
+        height: _settings.resolution.height,
+        fps: fps,
+        backgroundColor: _settings.backgroundColor.toARGB32(),
+        barCount: barCount,
+        barWidth: _settings.barWidth,
+        barSpacing: _settings.spacing,
+        cornerRadius: _settings.cornerRadius,
+        barColorArgb: _settings.positiveColor.toARGB32(),
+        frameHeights: flatHeights,
+      );
       _progressController.add(1.0);
-      return outputPath;
-    } catch (e) {
-      rethrow;
+      return resultPath;
+    } finally {
+      await progressSub.cancel();
+      gpuRenderer.disposeProgress();
+      await gpuRenderer.dispose();
     }
   }
 
-  Future<String> _exportWithFFmpeg(List<VisualizerFrame> frames) async {
+  Future<String> _exportWithNativeGpuAndMuxAudio(
+    List<VisualizerFrame> frames,
+  ) async {
+    final silentVideoPath = await _exportWithNativeGpu(frames);
+
+    final exporter = FFmpegExporter();
+    try {
+      final muxedPath = silentVideoPath.replaceAll('.mp4', '_with_audio.mp4');
+      final resultPath = await exporter.muxAudio(
+        videoPath: silentVideoPath,
+        audioPath: _audioFilePath,
+        outputPath: muxedPath,
+      );
+      final videoFile = File(silentVideoPath);
+      if (await videoFile.exists()) {
+        await videoFile.delete();
+      }
+      _progressController.add(1.0);
+      return resultPath;
+    } catch (e) {
+      debugPrint('Audio mux failed: $e');
+      _progressController.add(1.0);
+      return silentVideoPath;
+    }
+  }
+
+  Future<String> _exportWithOffscreenRenderer(List<VisualizerFrame> frames) async {
     final exporter = FFmpegExporter();
     final renderer = OffscreenRenderer(
       width: _settings.resolution.width,
@@ -121,6 +151,7 @@ class ExportCoordinator {
         final heights = _renderer.computeHeights(frame.magnitudes, dt);
         final pixels = await renderer.renderFrame(heights, _settings);
         exporter.writeFrame(pixels);
+
         _progressController.add(frameIndex / totalFrames);
         frameIndex++;
       }
@@ -134,49 +165,14 @@ class ExportCoordinator {
       );
       _progressController.add(1.0);
       return videoPath;
-    } catch (e) {
-      rethrow;
     } finally {
       await exporter.cleanup();
     }
   }
 
-  Future<String> _exportWithHardwareAndMuxAudio(
-    List<VisualizerFrame> frames,
-  ) async {
-    // 使用正确的 FPS 生成无声视频，匹配音频时长
-    final correctFps = _stftFps.round();
-    final silentVideoPath = await _exportWithHardware(
-      frames,
-      fpsOverride: correctFps,
-    );
-
-    // 用 FFmpeg 混入音频
-    final exporter = FFmpegExporter();
-    try {
-      final muxedPath = silentVideoPath.replaceAll('.mp4', '_with_audio.mp4');
-      final resultPath = await exporter.muxAudio(
-        videoPath: silentVideoPath,
-        audioPath: _audioFilePath,
-        outputPath: muxedPath,
-      );
-      // 删除无声视频
-      final videoFile = File(silentVideoPath);
-      if (await videoFile.exists()) {
-        await videoFile.delete();
-      }
-      _progressController.add(1.0);
-      return resultPath;
-    } catch (e) {
-      // 混流失败，返回无声视频
-      debugPrint('Audio mux failed: $e');
-      _progressController.add(1.0);
-      return silentVideoPath;
-    }
-  }
-
   void cancel() {
     _cancelled = true;
+    NativeGpuRenderer.cancelCurrentExport();
   }
 
   void dispose() {
