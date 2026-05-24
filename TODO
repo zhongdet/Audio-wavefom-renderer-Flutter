@@ -17,6 +17,7 @@ DONE, 是網頁沒有歸一化算法導致
 2. 沒有音頻播放時應顯示idle波形，同時根據波形參數動態響應高度，可以用正弦函數表達idle波形
 3. UI重構：
 - waveFrom Settings是操作頻率很高的動作，應移到最外層而非在列表中
+4. 加入barheight計算採樣率，參考web端的ReferenceFps
 
 ISSUE - not important:
 如果可以的話加入調整參數時可以看到波形的功能

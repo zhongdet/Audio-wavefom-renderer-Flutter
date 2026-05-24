@@ -101,6 +101,8 @@ object GpuRenderingPlugin {
                 gpuRenderer.init(width, height, fps, outputPath)
 
                 val floatHeights = FloatArray(barCount)
+                val frameIntervalNs = 1000000000L / fps
+                var currentPtsNs = 0L
 
                 for (frameIndex in 0 until totalFrames) {
                     if (!isExporting) break
@@ -112,8 +114,10 @@ object GpuRenderingPlugin {
 
                     gpuRenderer.renderFrame(
                         floatHeights, barCount, barWidth, barSpacing,
-                        cornerRadius, backgroundColor, barColorArgb,
+                        cornerRadius, backgroundColor, barColorArgb, currentPtsNs,
                     )
+
+                    currentPtsNs += frameIntervalNs
 
                     val progress = (frameIndex + 1).toDouble() / totalFrames
                     mainHandler!!.post { eventSink?.success(progress) }
