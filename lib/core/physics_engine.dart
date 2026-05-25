@@ -14,7 +14,7 @@ class PhysicsEngine {
 
   Float64List step(Float32List magnitudes, double dt) {
     // 根據 dt 計算補償比率，參考 FPS 設為 settings.referenceFps 或預設 60
-    final double referenceFps = 60.0;
+    final int referenceFps = settings.referenceFps;
     final double dtRatio = dt / (1.0 / referenceFps);
 
     // 應用精確的 Attack/Decay 插值
