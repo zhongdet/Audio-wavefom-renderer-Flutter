@@ -20,6 +20,8 @@ class NativeGpuRenderer {
     required double cornerRadius,
     required int barColorArgb,
     required Float64List frameHeights,
+    double positiveHeightScale = 1.0,
+    double negativeHeightScale = 1.0,
   }) async {
     final args = <String, dynamic>{
       'outputPath': outputPath,
@@ -32,6 +34,8 @@ class NativeGpuRenderer {
       'barSpacing': barSpacing,
       'cornerRadius': cornerRadius,
       'barColorArgb': barColorArgb,
+      'positiveHeightScale': positiveHeightScale,
+      'negativeHeightScale': negativeHeightScale,
       'frameHeights': frameHeights,
     };
 
@@ -39,9 +43,9 @@ class NativeGpuRenderer {
   }
 
   Stream<double> get progress {
-    return _progressChannel
-        .receiveBroadcastStream()
-        .map((event) => (event as num).toDouble());
+    return _progressChannel.receiveBroadcastStream().map(
+      (event) => (event as num).toDouble(),
+    );
   }
 
   static Future<void> cancelCurrentExport() async {

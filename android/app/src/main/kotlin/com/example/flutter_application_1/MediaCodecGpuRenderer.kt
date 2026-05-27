@@ -79,8 +79,8 @@ class MediaCodecGpuRenderer {
 
         void main() {
             ivec2 boundsCoord = ivec2(
-                int(gl_FragCoord.x * float($BOUNDS_TEX_WIDTH) / uResolution.x),
-                int(gl_FragCoord.y * float($BOUNDS_TEX_HEIGHT) / uResolution.y)
+                int((gl_FragCoord.x - 0.5) * float($BOUNDS_TEX_WIDTH) / uResolution.x),
+                int((gl_FragCoord.y - 0.5) * float($BOUNDS_TEX_HEIGHT) / uResolution.y)
             );
             int barIdx = texelFetch(uBoundsTexture, boundsCoord, 0).r;
 
@@ -98,9 +98,20 @@ class MediaCodecGpuRenderer {
             vec2 local = vec2(gl_FragCoord.x - bx, gl_FragCoord.y - by);
             vec4 bar1 = texelFetch(uBarTexture, ivec2(barIdx * 4 + 1, 0), 0);
             vec4 bar2 = texelFetch(uBarTexture, ivec2(barIdx * 4 + 2, 0), 0);
-            float r = bar2.x;
+            vec4 bar3 = texelFetch(uBarTexture, ivec2(barIdx * 4 + 3, 0), 0);
+            float topR = bar2.x;
+            float botR = bar2.z;
+            float cornerMask = bar3.w;
 
-            float d = sdRoundedRect(local, vec2(bw, bh), r);
+            float d;
+            if (cornerMask < 1.5) {
+                // Upper bar: round top corners
+                d = sdRoundedRect(local, vec2(bw, bh), topR);
+            } else {
+                // Lower bar: round bottom corners (flip Y before SDF)
+                vec2 localFlipped = vec2(local.x, bh - local.y);
+                d = sdRoundedRect(localFlipped, vec2(bw, bh), botR);
+            }
             if (d < 0.0) {
                 fragColor = vec4(bar1.rgb, bar1.a);
             } else {
@@ -240,6 +251,8 @@ class MediaCodecGpuRenderer {
     backgroundColor: Int,
     barColor: Int,
     currentPtsNs: Long,
+    positiveHeightScale: Float = 1f,
+    negativeHeightScale: Float = 1f,
   ) {
     if (!eglInitialized) return
     GLES30.glViewport(0, 0, width, height)
@@ -253,7 +266,7 @@ class MediaCodecGpuRenderer {
 
     GLES30.glUseProgram(program)
     GLES30.glUniform2f(uResolutionLoc, width.toFloat(), height.toFloat())
-    GLES30.glUniform1i(uBarCountLoc, barCount)
+    GLES30.glUniform1i(uBarCountLoc, barCount * 2)
     GLES30.glUniform4f(uBgColorLoc, bgR, bgG, bgB, bgA)
 
     val barA = ((barColor shr 24) and 0xFF) / 255f
@@ -267,17 +280,19 @@ class MediaCodecGpuRenderer {
     val maxBarHeight = height * 0.9f
 
     val barData =
-      ByteBuffer.allocateDirect(MAX_BARS * 4 * 4 * 4).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+      ByteBuffer.allocateDirect(MAX_BARS * 8 * 4 * 4).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
 
     for (i in 0 until barCount) {
-      val h = (barHeights[i] * maxBarHeight).coerceAtLeast(0f)
+      val topH = (barHeights[i] * maxBarHeight * positiveHeightScale).coerceAtLeast(0f)
+      val bottomH = (barHeights[i] * maxBarHeight * negativeHeightScale).coerceAtLeast(0f)
       val x = i * (barWidth + barSpacing) + offsetX
-      val y = centerY - h / 2f
 
+      // Upper bar (bottom at centerY, grows upward)
+      val topY = centerY - topH
       barData.put(x)
-      barData.put(y)
+      barData.put(topY)
       barData.put(barWidth)
-      barData.put(h)
+      barData.put(topH)
 
       barData.put(barR)
       barData.put(barG)
@@ -287,22 +302,43 @@ class MediaCodecGpuRenderer {
       barData.put(cornerRadius)
       barData.put(0f)
       barData.put(0f)
-      barData.put(0f)
+      barData.put(1f) // mask: 1 = round top corners
 
       barData.put(0f)
       barData.put(0f)
       barData.put(0f)
       barData.put(0f)
+
+      // Lower bar (top at centerY, grows downward)
+      barData.put(x)
+      barData.put(centerY)
+      barData.put(barWidth)
+      barData.put(bottomH)
+
+      barData.put(barR)
+      barData.put(barG)
+      barData.put(barB)
+      barData.put(barA)
+
+      barData.put(0f)
+      barData.put(0f)
+      barData.put(cornerRadius)
+      barData.put(0f)
+
+      barData.put(0f)
+      barData.put(0f)
+      barData.put(0f)
+      barData.put(2f) // mask: 2 = round bottom corners
     }
     barData.position(0)
 
     GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, barTextureId)
     GLES30.glTexImage2D(
       GLES30.GL_TEXTURE_2D, 0, GLES30.GL_RGBA32F,
-      MAX_BARS * 4, 1, 0, GLES30.GL_RGBA, GLES30.GL_FLOAT, barData
+      MAX_BARS * 8, 1, 0, GLES30.GL_RGBA, GLES30.GL_FLOAT, barData
     )
 
-    buildBoundsTexture(barCount, barHeights, barWidth, barSpacing, maxBarHeight, offsetX, centerY)
+    buildBoundsTexture(barCount, barHeights, barWidth, barSpacing, maxBarHeight, offsetX, centerY, positiveHeightScale, negativeHeightScale)
 
     GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
     GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, barTextureId)
@@ -332,7 +368,9 @@ class MediaCodecGpuRenderer {
     barSpacing: Float,
     maxBarHeight: Float,
     offsetX: Float,
-    centerY: Float
+    centerY: Float,
+    positiveHeightScale: Float = 1f,
+    negativeHeightScale: Float = 1f
   ) {
     val buf =
       ByteBuffer.allocateDirect(BOUNDS_TEX_WIDTH * BOUNDS_TEX_HEIGHT * 4)
@@ -345,22 +383,40 @@ class MediaCodecGpuRenderer {
     val scaleY = BOUNDS_TEX_HEIGHT.toFloat() / height
 
     for (i in 0 until barCount) {
-      val h = (barHeights[i] * maxBarHeight).coerceAtLeast(0f)
-      if (h <= 0.5f) continue
-
+      val topH = (barHeights[i] * maxBarHeight * positiveHeightScale).coerceAtLeast(0f)
+      val bottomH = (barHeights[i] * maxBarHeight * negativeHeightScale).coerceAtLeast(0f)
       val barLeft = i * (barWidth + barSpacing) + offsetX
       val barRight = barLeft + barWidth
-      val barTop = centerY - h / 2f
-      val barBottom = centerY + h / 2f
 
-      val minTX = (barLeft * scaleX).toInt().coerceIn(0, BOUNDS_TEX_WIDTH - 1)
-      val maxTX = (barRight * scaleX).toInt().coerceIn(0, BOUNDS_TEX_WIDTH)
-      val minTY = (barTop * scaleY).toInt().coerceIn(0, BOUNDS_TEX_HEIGHT - 1)
-      val maxTY = (barBottom * scaleY).toInt().coerceIn(0, BOUNDS_TEX_HEIGHT)
+      // Upper bar rect: bottom at centerY, grows upward
+      if (topH > 0.5f) {
+        val upperBarTop = centerY - topH
+        val upperBarBottom = centerY
+        val minTYu = (upperBarTop * scaleY + 0.5f).toInt().coerceIn(0, BOUNDS_TEX_HEIGHT - 1)
+        val maxTYu = (upperBarBottom * scaleY + 0.5f).toInt().coerceIn(0, BOUNDS_TEX_HEIGHT)
+        val minTX = (barLeft * scaleX + 0.5f).toInt().coerceIn(0, BOUNDS_TEX_WIDTH - 1)
+        val maxTX = (barRight * scaleX + 0.5f).toInt().coerceIn(0, BOUNDS_TEX_WIDTH)
+        val upperIdx = i * 2
+        for (ty in minTYu until maxTYu) {
+          for (tx in minTX until maxTX) {
+            buf.put(ty * BOUNDS_TEX_WIDTH + tx, upperIdx)
+          }
+        }
+      }
 
-      for (ty in minTY until maxTY) {
-        for (tx in minTX until maxTX) {
-          buf.put(ty * BOUNDS_TEX_WIDTH + tx, i)
+      // Lower bar rect: top at centerY, grows downward
+      if (bottomH > 0.5f) {
+        val lowerBarTop = centerY
+        val lowerBarBottom = centerY + bottomH
+        val minTYl = (lowerBarTop * scaleY + 0.5f).toInt().coerceIn(0, BOUNDS_TEX_HEIGHT - 1)
+        val maxTYl = (lowerBarBottom * scaleY + 0.5f).toInt().coerceIn(0, BOUNDS_TEX_HEIGHT)
+        val minTX = (barLeft * scaleX + 0.5f).toInt().coerceIn(0, BOUNDS_TEX_WIDTH - 1)
+        val maxTX = (barRight * scaleX + 0.5f).toInt().coerceIn(0, BOUNDS_TEX_WIDTH)
+        val lowerIdx = i * 2 + 1
+        for (ty in minTYl until maxTYl) {
+          for (tx in minTX until maxTX) {
+            buf.put(ty * BOUNDS_TEX_WIDTH + tx, lowerIdx)
+          }
         }
       }
     }

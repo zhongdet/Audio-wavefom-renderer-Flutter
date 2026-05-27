@@ -69,6 +69,8 @@ object GpuRenderingPlugin {
         val barSpacing = (call.argument<Number>("barSpacing")?.toFloat()) ?: 10f
         val cornerRadius = (call.argument<Number>("cornerRadius")?.toFloat()) ?: 0f
         val barColorArgb = (call.argument<Long>("barColorArgb") ?: 0xFFFFFFFFL).toInt()
+        val positiveHeightScale = (call.argument<Number>("positiveHeightScale")?.toFloat()) ?: 1f
+        val negativeHeightScale = (call.argument<Number>("negativeHeightScale")?.toFloat()) ?: 1f
 
         val frameHeightsRaw = call.argument<Any>("frameHeights")
 
@@ -115,6 +117,7 @@ object GpuRenderingPlugin {
                     gpuRenderer.renderFrame(
                         floatHeights, barCount, barWidth, barSpacing,
                         cornerRadius, backgroundColor, barColorArgb, currentPtsNs,
+                        positiveHeightScale, negativeHeightScale,
                     )
 
                     currentPtsNs += frameIntervalNs

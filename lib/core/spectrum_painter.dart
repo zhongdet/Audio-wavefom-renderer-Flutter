@@ -26,17 +26,32 @@ abstract class SpectrumPainter {
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < barCount; i++) {
-      final h = heights[i].clamp(0.0, 1.0) * size.height * settings.positiveHeightScale;
+      final clamped = heights[i].clamp(0.0, 1.0);
+      final topH = clamped * size.height * settings.positiveHeightScale;
+      final bottomH = clamped * size.height * settings.negativeHeightScale;
       final x = i * (barWidth + gap) + offsetX;
-      final top = centerY - h / 2;
 
-      final rect = RRect.fromRectAndCorners(
-        Rect.fromLTWH(x, top, barWidth, h),
-        topLeft: radius,
-        topRight: radius,
-      );
+      if (topH > 0) {
+        canvas.drawRRect(
+          RRect.fromRectAndCorners(
+            Rect.fromLTWH(x, centerY - topH, barWidth, topH),
+            topLeft: radius,
+            topRight: radius,
+          ),
+          paint,
+        );
+      }
 
-      canvas.drawRRect(rect, paint);
+      if (bottomH > 0) {
+        canvas.drawRRect(
+          RRect.fromRectAndCorners(
+            Rect.fromLTWH(x, centerY, barWidth, bottomH),
+            bottomLeft: radius,
+            bottomRight: radius,
+          ),
+          paint,
+        );
+      }
     }
   }
 }

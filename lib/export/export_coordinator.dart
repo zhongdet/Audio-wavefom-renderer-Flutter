@@ -76,7 +76,8 @@ class ExportCoordinator {
     }
 
     final dir = await getTemporaryDirectory();
-    final outputPath = '${dir.path}/export_${DateTime.now().millisecondsSinceEpoch}.mp4';
+    final outputPath =
+        '${dir.path}/export_${DateTime.now().millisecondsSinceEpoch}.mp4';
 
     final progressSub = gpuRenderer.progress.listen((p) {
       _progressController.add(p);
@@ -94,6 +95,8 @@ class ExportCoordinator {
         barSpacing: _settings.spacing,
         cornerRadius: _settings.cornerRadius,
         barColorArgb: _settings.positiveColor.toARGB32(),
+        positiveHeightScale: _settings.positiveHeightScale,
+        negativeHeightScale: _settings.negativeHeightScale,
         frameHeights: flatHeights,
       );
       _progressController.add(1.0);
@@ -131,7 +134,9 @@ class ExportCoordinator {
     }
   }
 
-  Future<String> _exportWithOffscreenRenderer(List<VisualizerFrame> frames) async {
+  Future<String> _exportWithOffscreenRenderer(
+    List<VisualizerFrame> frames,
+  ) async {
     final exporter = FFmpegExporter();
     final renderer = OffscreenRenderer(
       width: _settings.resolution.width,
